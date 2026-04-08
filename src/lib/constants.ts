@@ -1,0 +1,116 @@
+export const COMPETITIONS = {
+  SERIE_A: { id: 2019, name: 'Serie A', code: 'SA', provider: 'football-data' as const, hasStandings: true },
+  PREMIER_LEAGUE: { id: 2021, name: 'Premier League', code: 'PL', provider: 'football-data' as const, hasStandings: true },
+  BUNDESLIGA: { id: 2002, name: 'Bundesliga', code: 'BL1', provider: 'football-data' as const, hasStandings: true },
+  LIGUE_1: { id: 2015, name: 'Ligue 1', code: 'FL1', provider: 'football-data' as const, hasStandings: true },
+  LA_LIGA: { id: 2014, name: 'La Liga', code: 'PD', provider: 'football-data' as const, hasStandings: true },
+  CHAMPIONS_LEAGUE: { id: 2001, name: 'Champions League', code: 'CL', provider: 'football-data' as const, hasStandings: false },
+  SERIE_B: { id: 136, name: 'Serie B', code: 'SB', provider: 'api-football' as const, hasStandings: true, apiFootballLeagueId: 136 },
+  EUROPA_LEAGUE: { id: 2, name: 'Europa League', code: 'EL', provider: 'api-football' as const, hasStandings: false, apiFootballLeagueId: 3 },
+  CONFERENCE_LEAGUE: { id: 848, name: 'Conference League', code: 'ECL', provider: 'api-football' as const, hasStandings: false, apiFootballLeagueId: 848 },
+  WC_QUALIFICATION_EUROPE: { id: 32, name: 'Qualificazioni Mondiali UEFA', code: 'WCQ_EU', provider: 'api-football' as const, hasStandings: false, apiFootballLeagueId: 32 },
+} as const;
+
+export const MONITORED_COMPETITION_IDS = [2019, 2021, 2002, 2015, 2014, 2001, 2, 848, 136, 32];
+
+export const API_FOOTBALL_LEAGUES = {
+  SERIE_A: 135,
+  SERIE_B: 136,
+  CHAMPIONS_LEAGUE: 2,
+  EUROPA_LEAGUE: 3,
+  CONFERENCE_LEAGUE: 848,
+  PREMIER_LEAGUE: 39,
+  LA_LIGA: 140,
+  BUNDESLIGA: 78,
+  LIGUE_1: 61,
+  WC_QUALIFICATION_EUROPE: 32,
+} as const;
+
+export const NATIONAL_TEAM_COMPETITIONS = new Set<number>([API_FOOTBALL_LEAGUES.WC_QUALIFICATION_EUROPE]);
+export const NATIONAL_TEAM_ID_OFFSET = 1000000;
+
+export const LIGUE1_ID_MAP: Record<number, number> = {
+  522: 10001, // OGC Nice
+  511: 10002, // Toulouse FC
+  512: 10003, // Stade Brestois 29
+  525: 10004, // FC Lorient
+};
+
+export const SERIE_B_TEAMS: Record<number, { name: string; shortName: string; tla: string }> = {
+  511: { name: 'Empoli', shortName: 'Empoli', tla: 'EMP' },
+  512: { name: 'Frosinone', shortName: 'Frosinone', tla: 'FRO' },
+  522: { name: 'Palermo', shortName: 'Palermo', tla: 'PAL' },
+  525: { name: 'Pescara', shortName: 'Pescara', tla: 'PES' },
+};
+
+export const COMP_CODE_MAP: Record<number, string> = {
+  2019: 'SA', 2021: 'PL', 2002: 'BL1', 2015: 'FL1', 2014: 'PD',
+  2001: 'CL', 2: 'EL', 848: 'ECL', 136: 'SB', 32: 'WCQ_EU',
+};
+
+export const LEAGUE_TO_COMP_MAP: Record<number, number> = {
+  135: 2019, 136: 136, 39: 2021, 78: 2002, 61: 2015, 140: 2014,
+  2: 2001, 3: 2, 848: 848, 32: 32,
+};
+
+// Polymarket Prediction Market Configuration
+export const POLYMARKET_BASE_URL = 'https://gamma-api.polymarket.com';
+
+// Tag IDs for filtering Polymarket events by competition
+export const POLYMARKET_TAG_IDS: Record<string, number> = {
+  SA: 101962,   // Serie A
+  PL: 82,       // Premier League
+  BL1: 1494,    // Bundesliga
+  FL1: 102070,  // Ligue 1
+  PD: 780,      // La Liga
+  CL: 1234,     // Champions League
+  EL: 101787,   // Europa League
+  ECL: 100787,  // Conference League
+  SB: 102870,   // Serie B
+  SOCCER: 100350, // All soccer
+};
+
+// Polymarket sport codes (from /sports endpoint)
+export const POLYMARKET_SPORT_CODES: Record<string, string> = {
+  SA: 'sea',
+  PL: 'epl',
+  BL1: 'bun',
+  FL1: 'fl1',
+  PD: 'lal',
+  CL: 'ucl',
+  EL: 'uel',
+  ECL: 'con',
+  SB: 'itsb',
+};
+
+// Polymarket market types we care about
+export const POLYMARKET_MARKET_TYPES = [
+  'moneyline',           // 1X2
+  'totals',              // Over/Under goals
+  'both_teams_to_score', // BTTS
+  'spreads',             // Asian Handicap
+  'double_chance',       // Double Chance
+  'first_half_moneyline',// HT 1X2
+  'first_half_totals',   // HT Over/Under
+  'total_corners',       // Corners
+  'soccer_halftime_result', // HT result
+] as const;
+
+export const PREMIUM_PLANS = {
+  monthly: { amount: 9.90, days: 30, label: 'mensile' },
+  yearly: { amount: 99.00, days: 365, label: 'annuale' },
+} as const;
+
+export const MARKET_TYPES = [
+  '1X2', 'OVER_25', 'OVER_35', 'BTTS',
+  '1X2_HT', 'OVER_05_HT', 'OVER_15_HT', 'BTTS_HT',
+  'TOTAL_CARDS_OVER25', 'TOTAL_CARDS_OVER45',
+  'TOTAL_CORNERS_OVER85', 'TOTAL_CORNERS_OVER105',
+] as const;
+
+export const TARGET_ACCURACIES: Record<string, number> = {
+  '1X2': 45, 'OVER_25': 55, 'OVER_35': 60, 'BTTS': 55,
+  '1X2_HT': 40, 'OVER_05_HT': 70, 'OVER_15_HT': 55, 'BTTS_HT': 60,
+  'TOTAL_CARDS_OVER25': 55, 'TOTAL_CARDS_OVER45': 55,
+  'TOTAL_CORNERS_OVER85': 55, 'TOTAL_CORNERS_OVER105': 55,
+};
