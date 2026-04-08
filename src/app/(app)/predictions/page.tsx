@@ -47,7 +47,7 @@ export default function PredictionsPage() {
         const res = await fetch('/api/predictions/upcoming');
         if (res.ok) {
           const data = await res.json();
-          setPredictions(data.data || []);
+          setPredictions(Array.isArray(data) ? data : data.data || []);
         }
       } catch {
         // Handle silently

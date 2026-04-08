@@ -60,7 +60,7 @@ export default function HistoryPage() {
         const res = await fetch(`/api/predictions/history?page=${page}&limit=${perPage}`);
         if (res.ok) {
           const data = await res.json();
-          setItems(data.data || []);
+          setItems(Array.isArray(data) ? data : data.data || []);
           setHasMore((data.meta?.total || 0) > page * perPage);
         }
       } catch {

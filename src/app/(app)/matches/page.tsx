@@ -28,11 +28,11 @@ export default function MatchesPage() {
       try {
         const url = activeTab === 'all'
           ? '/api/matches/upcoming?limit=50'
-          : `/api/matches/upcoming?limit=50&competition=${activeTab}`;
+          : `/api/matches/upcoming?limit=50&competitionId=${activeTab}`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          setMatches(data.data || []);
+          setMatches(Array.isArray(data) ? data : data.data || []);
         }
       } catch {
         // Silently handle

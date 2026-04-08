@@ -29,11 +29,11 @@ export default function DashboardPage() {
 
         if (statsRes.ok) {
           const statsData = await statsRes.json();
-          setStats(statsData.data);
+          setStats(statsData.data || statsData);
         }
         if (matchesRes.ok) {
           const matchesData = await matchesRes.json();
-          setMatches(matchesData.data || []);
+          setMatches(Array.isArray(matchesData) ? matchesData : matchesData.data || []);
         }
       } catch {
         // Silently handle fetch errors
