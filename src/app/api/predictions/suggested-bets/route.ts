@@ -278,7 +278,7 @@ export async function GET() {
     // Sort by reliability score
     allBets.sort((a, b) => b.reliabilityScore - a.reliabilityScore);
 
-    // Group by date for schedine
+    // Group by date
     const byDate: Record<string, SuggestedBet[]> = {};
     for (const bet of allBets) {
       const dateKey = new Date(bet.utcDate).toISOString().split('T')[0];
@@ -286,41 +286,77 @@ export async function GET() {
       byDate[dateKey].push(bet);
     }
 
-    // Build schedine: pick top 3-5 bets per day (different matches)
+    // Build 3 schedine per day: Sicura, Moderata, Rischiosa
     const schedine: Array<{
       date: string;
+      type: 'safe' | 'moderate' | 'bold';
+      label: string;
+      emoji: string;
+      description: string;
       bets: SuggestedBet[];
       combinedReliability: number;
+      combinedProbability: number;
     }> = [];
 
     for (const [date, bets] of Object.entries(byDate)) {
-      // Take best bet per match (avoid duplicates)
-      const usedMatches = new Set<number>();
-      const scheduleBets: SuggestedBet[] = [];
-
+      // Get unique best bet per match, sorted by reliability
+      const bestPerMatch: SuggestedBet[] = [];
+      const seen = new Set<number>();
       for (const bet of bets) {
-        if (usedMatches.has(bet.matchId)) continue;
-        if (scheduleBets.length >= 5) break;
-        // Only include high-reliability bets
-        if (bet.reliabilityScore < 40) continue;
-        usedMatches.add(bet.matchId);
-        scheduleBets.push(bet);
+        if (seen.has(bet.matchId)) continue;
+        seen.add(bet.matchId);
+        bestPerMatch.push(bet);
       }
 
-      if (scheduleBets.length >= 2) {
-        const avgReliability = scheduleBets.reduce((s, b) => s + b.reliabilityScore, 0) / scheduleBets.length;
+      if (bestPerMatch.length < 2) continue;
+
+      // SAFE: top 2-3 highest reliability bets (only score >= 50)
+      const safeBets = bestPerMatch.filter(b => b.reliabilityScore >= 50).slice(0, 3);
+      if (safeBets.length >= 2) {
+        const avgRel = safeBets.reduce((s, b) => s + b.reliabilityScore, 0) / safeBets.length;
+        const combinedProb = safeBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
         schedine.push({
-          date,
-          bets: scheduleBets,
-          combinedReliability: avgReliability,
+          date, type: 'safe',
+          label: 'Schedina Sicura',
+          emoji: '🛡️',
+          description: `${safeBets.length} selezioni ad alta affidabilita. Poche partite, massima probabilita.`,
+          bets: safeBets, combinedReliability: avgRel, combinedProbability: combinedProb,
+        });
+      }
+
+      // MODERATE: top 3-4 bets (score >= 40)
+      const modBets = bestPerMatch.filter(b => b.reliabilityScore >= 40).slice(0, 4);
+      if (modBets.length >= 3 && modBets.length > safeBets.length) {
+        const avgRel = modBets.reduce((s, b) => s + b.reliabilityScore, 0) / modBets.length;
+        const combinedProb = modBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
+        schedine.push({
+          date, type: 'moderate',
+          label: 'Schedina Bilanciata',
+          emoji: '⚖️',
+          description: `${modBets.length} selezioni bilanciate. Buon compromesso rischio/rendimento.`,
+          bets: modBets, combinedReliability: avgRel, combinedProbability: combinedProb,
+        });
+      }
+
+      // BOLD: top 4-6 bets including riskier ones (score >= 30)
+      const boldBets = bestPerMatch.filter(b => b.reliabilityScore >= 30).slice(0, 6);
+      if (boldBets.length >= 4 && boldBets.length > modBets.length) {
+        const avgRel = boldBets.reduce((s, b) => s + b.reliabilityScore, 0) / boldBets.length;
+        const combinedProb = boldBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
+        schedine.push({
+          date, type: 'bold',
+          label: 'Schedina Rischiosa',
+          emoji: '🔥',
+          description: `${boldBets.length} selezioni per chi cerca quote alte. Piu eventi, piu rischio, piu guadagno.`,
+          bets: boldBets, combinedReliability: avgRel, combinedProbability: combinedProb,
         });
       }
     }
 
     schedine.sort((a, b) => {
-      // Sort by date first, then reliability
       if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return b.combinedReliability - a.combinedReliability;
+      const typeOrder = { safe: 0, moderate: 1, bold: 2 };
+      return typeOrder[a.type] - typeOrder[b.type];
     });
 
     return NextResponse.json({

@@ -29,8 +29,13 @@ interface SuggestedBet {
 
 interface Schedina {
   date: string;
+  type: 'safe' | 'moderate' | 'bold';
+  label: string;
+  emoji: string;
+  description: string;
   bets: SuggestedBet[];
   combinedReliability: number;
+  combinedProbability: number;
 }
 
 function reliabilityColor(score: number) {
@@ -138,93 +143,149 @@ function BetCard({ bet, rank }: { bet: SuggestedBet; rank: number }) {
   );
 }
 
-function SchedinaCard({ schedina, index }: { schedina: Schedina; index: number }) {
-  const [expanded, setExpanded] = useState(index === 0);
-  const rel = reliabilityColor(schedina.combinedReliability);
+const TYPE_STYLES = {
+  safe: {
+    gradient: 'from-emerald-600/20 to-emerald-900/10',
+    border: 'ring-emerald-500/30',
+    badge: 'bg-emerald-500/20 text-emerald-400',
+    icon: Shield,
+    accent: 'var(--emerald)',
+  },
+  moderate: {
+    gradient: 'from-blue-600/20 to-blue-900/10',
+    border: 'ring-blue-500/30',
+    badge: 'bg-blue-500/20 text-blue-400',
+    icon: Target,
+    accent: 'var(--blue)',
+  },
+  bold: {
+    gradient: 'from-orange-600/20 to-red-900/10',
+    border: 'ring-orange-500/30',
+    badge: 'bg-orange-500/20 text-orange-400',
+    icon: Zap,
+    accent: 'var(--gold)',
+  },
+};
+
+function SchedinaCard({ schedina, isFirst }: { schedina: Schedina; isFirst: boolean }) {
+  const [expanded, setExpanded] = useState(isFirst);
+  const style = TYPE_STYLES[schedina.type];
+  const TypeIcon = style.icon;
   const dateLabel = formatDate(schedina.date);
 
   return (
-    <div className={`glass-card overflow-hidden ${index === 0 ? 'ring-1 ring-[var(--gold)]/30' : ''}`}>
-      {/* Header */}
+    <div className={`glass-card overflow-hidden ring-1 ${style.border}`}>
+      {/* Gradient header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-5 flex items-center justify-between hover:bg-[var(--card-hover)]/50 transition-colors"
+        className={`w-full p-5 bg-gradient-to-r ${style.gradient} hover:brightness-110 transition-all`}
       >
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-            index === 0 ? 'gradient-gold' : 'bg-[var(--violet)]/20'
-          }`}>
-            <Trophy className={`w-5 h-5 ${index === 0 ? 'text-black' : 'text-[var(--violet)]'}`} />
-          </div>
-          <div className="text-left">
-            <div className="font-bold flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
-              {dateLabel}
-              {index === 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-[var(--gold)]/20 text-[var(--gold)] text-[10px] font-bold uppercase">
-                  Consigliata
-                </span>
-              )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-black/20 backdrop-blur">
+              <span className="text-2xl">{schedina.emoji}</span>
             </div>
-            <div className="text-xs text-[var(--text-muted)] mt-0.5">
-              {schedina.bets.length} selezioni - {schedina.bets.map(b => b.competitionCode).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
+            <div className="text-left">
+              <div className="font-extrabold text-lg flex items-center gap-2">
+                {schedina.label}
+                {isFirst && (
+                  <span className="px-2 py-0.5 rounded-full bg-[var(--gold)]/20 text-[var(--gold)] text-[10px] font-bold uppercase animate-pulse">
+                    TOP PICK
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-[var(--text-secondary)] mt-0.5 flex items-center gap-2">
+                <Calendar className="w-3 h-3" />
+                {dateLabel}
+                <span className="opacity-50">|</span>
+                {schedina.bets.map(b => b.competitionCode).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <div className={`px-3 py-1.5 rounded-lg ${rel.bg} ${rel.text} text-sm font-bold`}>
-            {schedina.combinedReliability.toFixed(0)} pts
+          <div className="flex items-center gap-3">
+            {/* Combined probability */}
+            <div className="text-right hidden sm:block">
+              <div className="text-xs text-[var(--text-muted)]">Prob. combinata</div>
+              <div className="text-sm font-bold tabular-nums" style={{ color: style.accent }}>
+                {schedina.combinedProbability.toFixed(1)}%
+              </div>
+            </div>
+
+            <div className={`px-3 py-2 rounded-xl ${style.badge} text-center min-w-[60px]`}>
+              <div className="text-lg font-extrabold tabular-nums">{schedina.bets.length}</div>
+              <div className="text-[9px] uppercase tracking-wider opacity-70">eventi</div>
+            </div>
+            {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
           </div>
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </div>
+        <p className="text-xs text-[var(--text-muted)] mt-2 text-left">{schedina.description}</p>
       </button>
 
       {/* Bets list */}
       {expanded && (
-        <div className="border-t border-[var(--border)]/30 p-4 space-y-3">
+        <div className="divide-y divide-[var(--border)]/20">
           {schedina.bets.map((bet, i) => {
             const BIcon = betTypeIcon(bet.betType);
             const brel = reliabilityColor(bet.reliabilityScore);
             return (
               <Link key={`${bet.matchId}-${bet.betType}`} href={`/matches/${bet.matchId}`} className="block">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--card-hover)]/30 hover:bg-[var(--card-hover)] transition-colors">
-                  <div className="text-xs font-bold text-[var(--text-muted)] w-5">{i + 1}</div>
+                <div className="flex items-center gap-3 p-4 hover:bg-[var(--card-hover)]/50 transition-colors">
+                  {/* Number */}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0 ${style.badge}`}>
+                    {i + 1}
+                  </div>
 
+                  {/* Match */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {bet.homeTeamCrest && <img src={bet.homeTeamCrest} alt="" className="w-4 h-4 object-contain" />}
-                      <span className="text-sm font-medium truncate">{bet.homeTeam} - {bet.awayTeam}</span>
-                      {bet.awayTeamCrest && <img src={bet.awayTeamCrest} alt="" className="w-4 h-4 object-contain" />}
+                    <div className="flex items-center gap-1.5">
+                      {bet.homeTeamCrest && <img src={bet.homeTeamCrest} alt="" className="w-5 h-5 object-contain" />}
+                      <span className="text-sm font-semibold">{bet.homeTeam}</span>
+                      <span className="text-xs text-[var(--text-muted)]">vs</span>
+                      <span className="text-sm font-semibold">{bet.awayTeam}</span>
+                      {bet.awayTeamCrest && <img src={bet.awayTeamCrest} alt="" className="w-5 h-5 object-contain" />}
                     </div>
-                    <div className="text-xs text-[var(--text-muted)] mt-0.5">
-                      {bet.competition} - {formatTime(bet.utcDate)}
+                    <div className="text-[11px] text-[var(--text-muted)] mt-0.5 flex items-center gap-1.5">
+                      <span>{bet.competition}</span>
+                      <span>-</span>
+                      <span>{formatTime(bet.utcDate)}</span>
+                      {bet.marketOddsProb && (
+                        <>
+                          <span className="opacity-40">|</span>
+                          <Blocks className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400">{bet.marketOddsProb.toFixed(0)}%</span>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <BIcon className="w-3.5 h-3.5 text-[var(--violet)]" />
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${brel.bg} ${brel.text}`}>
-                      {bet.betLabel}
-                    </span>
-                  </div>
-
+                  {/* Bet type */}
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-bold tabular-nums">{bet.probability.toFixed(0)}%</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">Score: {bet.reliabilityScore.toFixed(0)}</div>
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${brel.bg} ring-1 ${brel.ring}`}>
+                      <BIcon className="w-3.5 h-3.5" />
+                      <span className={`text-xs font-bold ${brel.text}`}>{bet.betLabel}</span>
+                    </div>
+                    <div className="text-lg font-extrabold tabular-nums mt-1" style={{ color: style.accent }}>
+                      {bet.probability.toFixed(0)}%
+                    </div>
                   </div>
                 </div>
               </Link>
             );
           })}
 
-          {/* Schedina summary */}
-          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]/20 text-xs">
+          {/* Footer */}
+          <div className="p-4 flex items-center justify-between text-xs bg-[var(--card-hover)]/20">
+            <div className="flex items-center gap-4">
+              <span className="text-[var(--text-muted)]">
+                Affidabilita: <span className="font-bold" style={{ color: style.accent }}>{schedina.combinedReliability.toFixed(0)}/100</span>
+              </span>
+              <span className="text-[var(--text-muted)]">
+                Prob. combinata: <span className="font-bold">{schedina.combinedProbability.toFixed(1)}%</span>
+              </span>
+            </div>
             <span className="text-[var(--text-muted)]">
-              Affidabilita media: <span className={`font-bold ${rel.text}`}>{schedina.combinedReliability.toFixed(1)}</span>
-            </span>
-            <span className="text-[var(--text-muted)]">
-              {schedina.bets.length} eventi - {schedina.bets.filter(b => b.marketOddsProb).length} con dati Polymarket
+              {schedina.bets.filter(b => b.marketOddsProb).length}/{schedina.bets.length} confermati da Polymarket
             </span>
           </div>
         </div>
@@ -320,11 +381,26 @@ export default function SchedinePage() {
 
       {/* Schedine view */}
       {view === 'schedine' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {schedine.length > 0 ? (
-            schedine.map((s, i) => (
-              <SchedinaCard key={s.date} schedina={s} index={i} />
-            ))
+            (() => {
+              // Group by date
+              const dates = [...new Set(schedine.map(s => s.date))];
+              return dates.map((date, di) => (
+                <div key={date}>
+                  <h2 className="text-lg font-extrabold mb-3 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-[var(--violet)]" />
+                    {formatDate(date)}
+                    {di === 0 && <span className="text-xs text-[var(--gold)] font-normal ml-2">Prossimo giorno</span>}
+                  </h2>
+                  <div className="space-y-3">
+                    {schedine.filter(s => s.date === date).map((s, i) => (
+                      <SchedinaCard key={`${s.date}-${s.type}`} schedina={s} isFirst={di === 0 && i === 0} />
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()
           ) : (
             <div className="glass-card p-12 text-center">
               <Trophy className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
