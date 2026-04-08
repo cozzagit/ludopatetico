@@ -298,56 +298,99 @@ export async function GET() {
       combinedProbability: number;
     }> = [];
 
-    for (const [date, bets] of Object.entries(byDate)) {
-      // Get unique best bet per match, sorted by reliability
-      const bestPerMatch: SuggestedBet[] = [];
-      const seen = new Set<number>();
-      for (const bet of bets) {
-        if (seen.has(bet.matchId)) continue;
-        seen.add(bet.matchId);
-        bestPerMatch.push(bet);
+    // Helper: pick diverse bets (different matches, mixed bet types)
+    function pickDiverseBets(
+      bets: SuggestedBet[],
+      count: number,
+      minScore: number
+    ): SuggestedBet[] {
+      const eligible = bets.filter(b => b.reliabilityScore >= minScore);
+      const picked: SuggestedBet[] = [];
+      const usedMatches = new Set<number>();
+      const usedTypes = new Map<string, number>(); // betType -> count
+
+      // Group bets by match, keeping all bet types
+      const byMatch = new Map<number, SuggestedBet[]>();
+      for (const b of eligible) {
+        if (!byMatch.has(b.matchId)) byMatch.set(b.matchId, []);
+        byMatch.get(b.matchId)!.push(b);
       }
 
-      if (bestPerMatch.length < 2) continue;
+      // Round-robin: for each match, pick the best bet that adds type diversity
+      while (picked.length < count && usedMatches.size < byMatch.size) {
+        let bestBet: SuggestedBet | null = null;
+        let bestScore = -1;
 
-      // SAFE: top 2-3 highest reliability bets (only score >= 50)
-      const safeBets = bestPerMatch.filter(b => b.reliabilityScore >= 50).slice(0, 3);
+        for (const [matchId, matchBets] of byMatch) {
+          if (usedMatches.has(matchId)) continue;
+
+          for (const bet of matchBets) {
+            // Bonus for type diversity: prefer types we haven't used yet
+            const typeCount = usedTypes.get(bet.betType) || 0;
+            const diversityBonus = typeCount === 0 ? 15 : typeCount === 1 ? 5 : -5;
+            const adjustedScore = bet.reliabilityScore + diversityBonus;
+
+            if (adjustedScore > bestScore) {
+              bestScore = adjustedScore;
+              bestBet = bet;
+            }
+          }
+        }
+
+        if (!bestBet) break;
+        picked.push(bestBet);
+        usedMatches.add(bestBet.matchId);
+        usedTypes.set(bestBet.betType, (usedTypes.get(bestBet.betType) || 0) + 1);
+      }
+
+      return picked;
+    }
+
+    for (const [date, bets] of Object.entries(byDate)) {
+      const uniqueMatches = new Set(bets.map(b => b.matchId)).size;
+      if (uniqueMatches < 2) continue;
+
+      // SAFE: 2-3 best diverse bets (score >= 48)
+      const safeBets = pickDiverseBets(bets, 3, 48);
       if (safeBets.length >= 2) {
         const avgRel = safeBets.reduce((s, b) => s + b.reliabilityScore, 0) / safeBets.length;
         const combinedProb = safeBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
+        const types = [...new Set(safeBets.map(b => b.betLabel))];
         schedine.push({
           date, type: 'safe',
           label: 'Schedina Sicura',
           emoji: '🛡️',
-          description: `${safeBets.length} selezioni ad alta affidabilita. Poche partite, massima probabilita.`,
+          description: `${safeBets.length} selezioni top: ${types.join(', ')}. Massima probabilita.`,
           bets: safeBets, combinedReliability: avgRel, combinedProbability: combinedProb,
         });
       }
 
-      // MODERATE: top 3-4 bets (score >= 40)
-      const modBets = bestPerMatch.filter(b => b.reliabilityScore >= 40).slice(0, 4);
-      if (modBets.length >= 3 && modBets.length > safeBets.length) {
+      // MODERATE: 3-4 diverse bets (score >= 38)
+      const modBets = pickDiverseBets(bets, 4, 38);
+      if (modBets.length >= 3) {
         const avgRel = modBets.reduce((s, b) => s + b.reliabilityScore, 0) / modBets.length;
         const combinedProb = modBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
+        const types = [...new Set(modBets.map(b => b.betLabel))];
         schedine.push({
           date, type: 'moderate',
           label: 'Schedina Bilanciata',
           emoji: '⚖️',
-          description: `${modBets.length} selezioni bilanciate. Buon compromesso rischio/rendimento.`,
+          description: `${modBets.length} selezioni mix: ${types.join(', ')}. Buon rapporto rischio/rendimento.`,
           bets: modBets, combinedReliability: avgRel, combinedProbability: combinedProb,
         });
       }
 
-      // BOLD: top 4-6 bets including riskier ones (score >= 30)
-      const boldBets = bestPerMatch.filter(b => b.reliabilityScore >= 30).slice(0, 6);
-      if (boldBets.length >= 4 && boldBets.length > modBets.length) {
+      // BOLD: 4-6 diverse bets (score >= 28)
+      const boldBets = pickDiverseBets(bets, 6, 28);
+      if (boldBets.length >= 4) {
         const avgRel = boldBets.reduce((s, b) => s + b.reliabilityScore, 0) / boldBets.length;
         const combinedProb = boldBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
+        const types = [...new Set(boldBets.map(b => b.betLabel))];
         schedine.push({
           date, type: 'bold',
           label: 'Schedina Rischiosa',
           emoji: '🔥',
-          description: `${boldBets.length} selezioni per chi cerca quote alte. Piu eventi, piu rischio, piu guadagno.`,
+          description: `${boldBets.length} selezioni aggressive: ${types.join(', ')}. Quote alte, alto rischio.`,
           bets: boldBets, combinedReliability: avgRel, combinedProbability: combinedProb,
         });
       }
