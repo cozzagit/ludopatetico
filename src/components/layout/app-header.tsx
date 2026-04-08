@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { Trophy, BarChart3, Clock, Zap, Crown, Shield, Menu, X, TrendingUp } from 'lucide-react';
+import { Trophy, BarChart3, Clock, Zap, Crown, Shield, Menu, X, TrendingUp, Star } from 'lucide-react';
 import { useState } from 'react';
 
 export function AppHeader() {
@@ -16,6 +16,7 @@ export function AppHeader() {
     { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
     { href: '/matches', label: 'Partite', icon: Trophy },
     { href: '/predictions', label: 'Pronostici', icon: Zap },
+    { href: '/schedine', label: 'Schedine', icon: Star },
     { href: '/history', label: 'Storico', icon: Clock },
     { href: '/analytics', label: 'Analytics', icon: TrendingUp },
   ];

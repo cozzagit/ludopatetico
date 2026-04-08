@@ -1,0 +1,338 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/src/lib/db';
+import { matches, teams, competitions, predictions, marketOdds } from '@/src/lib/db/schema';
+import { eq, gte, asc, and } from 'drizzle-orm';
+
+interface AccuracyRow {
+  competitionId: number;
+  competitionName: string;
+  marketType: string;
+  accuracy: number;
+  totalPredictions: number;
+}
+
+interface SuggestedBet {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamCrest: string | null;
+  awayTeamCrest: string | null;
+  competition: string;
+  competitionCode: string;
+  utcDate: string;
+  betType: string;
+  betLabel: string;
+  betValue: string;
+  probability: number;
+  historicalAccuracy: number;
+  marketOddsProb: number | null;
+  reliabilityScore: number;
+  confidence: number;
+  reasoning: string;
+}
+
+const BET_LABELS: Record<string, string> = {
+  '1X2_HOME': 'Vittoria Casa (1)',
+  '1X2_DRAW': 'Pareggio (X)',
+  '1X2_AWAY': 'Vittoria Trasferta (2)',
+  'OVER_25': 'Over 2.5 Gol',
+  'UNDER_25': 'Under 2.5 Gol',
+  'OVER_35': 'Over 3.5 Gol',
+  'BTTS_YES': 'Goal (Entrambe segnano)',
+  'BTTS_NO': 'No Goal',
+  'OVER_15': 'Over 1.5 Gol',
+  'DC_1X': 'Doppia Chance 1X',
+  'DC_X2': 'Doppia Chance X2',
+};
+
+export async function GET() {
+  try {
+    // 1. Fetch historical accuracy per competition x market
+    const accRes = await fetch(
+      `${process.env.NEXTAUTH_URL || 'http://localhost:3005'}/api/predictions/accuracy-by-competition`
+    ).catch(() => null);
+    const accuracyData: AccuracyRow[] = accRes?.ok ? await accRes.json() : [];
+
+    // Build accuracy lookup: compId_marketType -> accuracy
+    const accuracyMap = new Map<string, number>();
+    for (const row of accuracyData) {
+      accuracyMap.set(`${row.competitionId}_${row.marketType}`, row.accuracy);
+    }
+
+    // 2. Get upcoming matches with predictions (next 7 days)
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const upcomingPreds = await db
+      .select({
+        prediction: predictions,
+        match: matches,
+      })
+      .from(predictions)
+      .innerJoin(matches, eq(predictions.matchId, matches.id))
+      .where(
+        and(
+          gte(matches.utcDate, now),
+          // Filter out matches too far away
+        )
+      )
+      .orderBy(asc(matches.utcDate))
+      .limit(200);
+
+    // Filter to next 7 days
+    const filtered = upcomingPreds.filter(r => new Date(r.match.utcDate) <= weekFromNow);
+
+    // 3. Enrich and calculate bets
+    const allBets: SuggestedBet[] = [];
+
+    for (const { prediction: pred, match } of filtered) {
+      const homeTeam = await db.select().from(teams).where(eq(teams.id, match.homeTeamId)).limit(1).then(r => r[0]);
+      const awayTeam = await db.select().from(teams).where(eq(teams.id, match.awayTeamId)).limit(1).then(r => r[0]);
+      const comp = await db.select().from(competitions).where(eq(competitions.id, match.competitionId)).limit(1).then(r => r[0]);
+
+      if (!homeTeam || !awayTeam || !comp) continue;
+
+      // Get market odds
+      const mktOdds = await db.select().from(marketOdds).where(eq(marketOdds.matchId, match.id)).limit(1).then(r => r[0] ?? null);
+
+      const homeProb = parseFloat(pred.homeWinProbability);
+      const drawProb = parseFloat(pred.drawProbability);
+      const awayProb = parseFloat(pred.awayWinProbability);
+      const confidence = parseFloat(pred.confidence);
+
+      const baseBet = {
+        matchId: match.id,
+        homeTeam: homeTeam.shortName || homeTeam.name,
+        awayTeam: awayTeam.shortName || awayTeam.name,
+        homeTeamCrest: homeTeam.crest,
+        awayTeamCrest: awayTeam.crest,
+        competition: comp.name,
+        competitionCode: comp.code,
+        utcDate: match.utcDate.toISOString(),
+        confidence,
+      };
+
+      // Helper to calculate reliability score
+      function calcScore(prob: number, marketType: string, mktProb: number | null): number {
+        const histAcc = accuracyMap.get(`${match.competitionId}_${marketType}`) || 50;
+        // Weighted: 40% probability, 30% historical accuracy, 20% market agreement, 10% confidence
+        const marketAgreement = mktProb !== null ? (1 - Math.abs(prob / 100 - mktProb) / 0.5) * 100 : 50;
+        return (prob * 0.4) + (histAcc * 0.3) + (Math.max(0, marketAgreement) * 0.2) + (confidence * 0.1);
+      }
+
+      // 1X2 bets
+      if (homeProb >= 50) {
+        const mktP = mktOdds?.homeWinProb ? parseFloat(mktOdds.homeWinProb) : null;
+        allBets.push({
+          ...baseBet,
+          betType: '1X2_HOME',
+          betLabel: BET_LABELS['1X2_HOME'],
+          betValue: homeTeam.shortName || homeTeam.name,
+          probability: homeProb,
+          historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
+          marketOddsProb: mktP ? mktP * 100 : null,
+          reliabilityScore: calcScore(homeProb, '1X2', mktP),
+          reasoning: `${homeTeam.shortName || homeTeam.name} favorita al ${homeProb.toFixed(0)}%`,
+        });
+      }
+
+      if (awayProb >= 50) {
+        const mktP = mktOdds?.awayWinProb ? parseFloat(mktOdds.awayWinProb) : null;
+        allBets.push({
+          ...baseBet,
+          betType: '1X2_AWAY',
+          betLabel: BET_LABELS['1X2_AWAY'],
+          betValue: awayTeam.shortName || awayTeam.name,
+          probability: awayProb,
+          historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
+          marketOddsProb: mktP ? mktP * 100 : null,
+          reliabilityScore: calcScore(awayProb, '1X2', mktP),
+          reasoning: `${awayTeam.shortName || awayTeam.name} favorita al ${awayProb.toFixed(0)}%`,
+        });
+      }
+
+      if (drawProb >= 35 && Math.abs(homeProb - awayProb) < 15) {
+        const mktP = mktOdds?.drawProb ? parseFloat(mktOdds.drawProb) : null;
+        allBets.push({
+          ...baseBet,
+          betType: '1X2_DRAW',
+          betLabel: BET_LABELS['1X2_DRAW'],
+          betValue: 'Pareggio',
+          probability: drawProb,
+          historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
+          marketOddsProb: mktP ? mktP * 100 : null,
+          reliabilityScore: calcScore(drawProb, '1X2', mktP),
+          reasoning: `Partita equilibrata (${homeProb.toFixed(0)}%-${drawProb.toFixed(0)}%-${awayProb.toFixed(0)}%)`,
+        });
+      }
+
+      // Double Chance - high reliability
+      if (homeProb + drawProb >= 70 && homeProb < 60) {
+        allBets.push({
+          ...baseBet,
+          betType: 'DC_1X',
+          betLabel: BET_LABELS['DC_1X'],
+          betValue: `${homeTeam.shortName || homeTeam.name} o X`,
+          probability: homeProb + drawProb,
+          historicalAccuracy: (accuracyMap.get(`${match.competitionId}_1X2`) || 50) + 10,
+          marketOddsProb: null,
+          reliabilityScore: calcScore(homeProb + drawProb, '1X2', null) * 0.95,
+          reasoning: `1X copre ${(homeProb + drawProb).toFixed(0)}% delle probabilita`,
+        });
+      }
+      if (awayProb + drawProb >= 70 && awayProb < 60) {
+        allBets.push({
+          ...baseBet,
+          betType: 'DC_X2',
+          betLabel: BET_LABELS['DC_X2'],
+          betValue: `X o ${awayTeam.shortName || awayTeam.name}`,
+          probability: awayProb + drawProb,
+          historicalAccuracy: (accuracyMap.get(`${match.competitionId}_1X2`) || 50) + 10,
+          marketOddsProb: null,
+          reliabilityScore: calcScore(awayProb + drawProb, '1X2', null) * 0.95,
+          reasoning: `X2 copre ${(awayProb + drawProb).toFixed(0)}% delle probabilita`,
+        });
+      }
+
+      // Over/Under 2.5
+      const over25 = pred.over25Probability ? parseFloat(pred.over25Probability) : null;
+      if (over25 !== null) {
+        const mktP = mktOdds?.over25Prob ? parseFloat(mktOdds.over25Prob) : null;
+        if (over25 >= 60) {
+          allBets.push({
+            ...baseBet,
+            betType: 'OVER_25',
+            betLabel: BET_LABELS['OVER_25'],
+            betValue: 'Over 2.5',
+            probability: over25,
+            historicalAccuracy: accuracyMap.get(`${match.competitionId}_OVER_25`) || 55,
+            marketOddsProb: mktP ? mktP * 100 : null,
+            reliabilityScore: calcScore(over25, 'OVER_25', mktP),
+            reasoning: `Alta probabilita di 3+ gol (${over25.toFixed(0)}%)`,
+          });
+        }
+        if (over25 <= 40) {
+          allBets.push({
+            ...baseBet,
+            betType: 'UNDER_25',
+            betLabel: BET_LABELS['UNDER_25'],
+            betValue: 'Under 2.5',
+            probability: 100 - over25,
+            historicalAccuracy: accuracyMap.get(`${match.competitionId}_OVER_25`) || 55,
+            marketOddsProb: mktP ? (1 - mktP) * 100 : null,
+            reliabilityScore: calcScore(100 - over25, 'OVER_25', mktP ? 1 - mktP : null),
+            reasoning: `Partita da pochi gol (Under al ${(100 - over25).toFixed(0)}%)`,
+          });
+        }
+      }
+
+      // BTTS
+      const bttsYes = pred.bttsYesProbability ? parseFloat(pred.bttsYesProbability) : null;
+      if (bttsYes !== null) {
+        const mktP = mktOdds?.bttsYesProb ? parseFloat(mktOdds.bttsYesProb) : null;
+        if (bttsYes >= 60) {
+          allBets.push({
+            ...baseBet,
+            betType: 'BTTS_YES',
+            betLabel: BET_LABELS['BTTS_YES'],
+            betValue: 'Goal',
+            probability: bttsYes,
+            historicalAccuracy: accuracyMap.get(`${match.competitionId}_BTTS`) || 55,
+            marketOddsProb: mktP ? mktP * 100 : null,
+            reliabilityScore: calcScore(bttsYes, 'BTTS', mktP),
+            reasoning: `Entrambe le squadre dovrebbero segnare (${bttsYes.toFixed(0)}%)`,
+          });
+        }
+        if (bttsYes <= 40) {
+          allBets.push({
+            ...baseBet,
+            betType: 'BTTS_NO',
+            betLabel: BET_LABELS['BTTS_NO'],
+            betValue: 'No Goal',
+            probability: 100 - bttsYes,
+            historicalAccuracy: accuracyMap.get(`${match.competitionId}_BTTS`) || 55,
+            marketOddsProb: mktP ? (1 - mktP) * 100 : null,
+            reliabilityScore: calcScore(100 - bttsYes, 'BTTS', mktP ? 1 - mktP : null),
+            reasoning: `Almeno una squadra non segna (${(100 - bttsYes).toFixed(0)}%)`,
+          });
+        }
+      }
+
+      // Over 1.5 (safer bet)
+      const over15 = pred.over15Probability ? parseFloat(pred.over15Probability) : null;
+      if (over15 !== null && over15 >= 75) {
+        allBets.push({
+          ...baseBet,
+          betType: 'OVER_15',
+          betLabel: BET_LABELS['OVER_15'],
+          betValue: 'Over 1.5',
+          probability: over15,
+          historicalAccuracy: 70, // Generally high
+          marketOddsProb: null,
+          reliabilityScore: calcScore(over15, 'OVER_25', null) * 0.9,
+          reasoning: `Quasi certo 2+ gol (${over15.toFixed(0)}%)`,
+        });
+      }
+    }
+
+    // Sort by reliability score
+    allBets.sort((a, b) => b.reliabilityScore - a.reliabilityScore);
+
+    // Group by date for schedine
+    const byDate: Record<string, SuggestedBet[]> = {};
+    for (const bet of allBets) {
+      const dateKey = new Date(bet.utcDate).toISOString().split('T')[0];
+      if (!byDate[dateKey]) byDate[dateKey] = [];
+      byDate[dateKey].push(bet);
+    }
+
+    // Build schedine: pick top 3-5 bets per day (different matches)
+    const schedine: Array<{
+      date: string;
+      bets: SuggestedBet[];
+      combinedReliability: number;
+    }> = [];
+
+    for (const [date, bets] of Object.entries(byDate)) {
+      // Take best bet per match (avoid duplicates)
+      const usedMatches = new Set<number>();
+      const scheduleBets: SuggestedBet[] = [];
+
+      for (const bet of bets) {
+        if (usedMatches.has(bet.matchId)) continue;
+        if (scheduleBets.length >= 5) break;
+        // Only include high-reliability bets
+        if (bet.reliabilityScore < 40) continue;
+        usedMatches.add(bet.matchId);
+        scheduleBets.push(bet);
+      }
+
+      if (scheduleBets.length >= 2) {
+        const avgReliability = scheduleBets.reduce((s, b) => s + b.reliabilityScore, 0) / scheduleBets.length;
+        schedine.push({
+          date,
+          bets: scheduleBets,
+          combinedReliability: avgReliability,
+        });
+      }
+    }
+
+    schedine.sort((a, b) => {
+      // Sort by date first, then reliability
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return b.combinedReliability - a.combinedReliability;
+    });
+
+    return NextResponse.json({
+      topBets: allBets.slice(0, 30),
+      schedine,
+      totalBets: allBets.length,
+    });
+  } catch (error) {
+    console.error('Error generating suggested bets:', error);
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Failed to generate suggestions' } },
+      { status: 500 }
+    );
+  }
+}
