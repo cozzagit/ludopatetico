@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-// Load .env.local
+// Load .env.local BEFORE any other imports (must use dynamic import)
 const envPath = resolve(process.cwd(), '.env.local');
 const envContent = readFileSync(envPath, 'utf-8');
 for (const line of envContent.split('\n')) {
@@ -11,17 +11,19 @@ for (const line of envContent.split('\n')) {
     if (eqIdx > 0) {
       const key = trimmed.substring(0, eqIdx);
       const val = trimmed.substring(eqIdx + 1);
-      if (!process.env[key]) process.env[key] = val;
+      process.env[key] = val;
     }
   }
 }
 
-import { footballDataService } from '../src/lib/services/football-data';
-import { syncMarketOdds } from '../src/lib/services/polymarket';
-
 async function main() {
+  // Dynamic imports so env vars are loaded first
+  const { footballDataService } = await import('../src/lib/services/football-data');
+  const { syncMarketOdds } = await import('../src/lib/services/polymarket');
+
   console.log('=== FOOTBALL ORACLE - FULL SYNC ===');
   console.log('Started:', new Date().toISOString());
+  console.log('API Key loaded:', process.env.FOOTBALL_DATA_API_KEY ? 'YES' : 'NO');
 
   // 1. Sync Football-Data.org competitions
   const fdComps = ['SA', 'PL', 'BL1', 'FL1', 'PD', 'CL'];
