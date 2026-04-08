@@ -46,12 +46,13 @@ export default function DashboardPage() {
 
   const user = session?.user as any;
 
-  const statCards = stats
+  const s = stats as any;
+  const statCards = s
     ? [
-        { label: '1X2', value: stats.result1x2.percentage, total: stats.result1x2.total, color: 'var(--violet)', icon: Target },
-        { label: 'Over 2.5', value: stats.over25.percentage, total: stats.over25.total, color: 'var(--emerald)', icon: TrendingUp },
-        { label: 'Over 3.5', value: stats.over35.percentage, total: stats.over35.total, color: 'var(--blue)', icon: BarChart3 },
-        { label: 'BTTS', value: stats.btts.percentage, total: stats.btts.total, color: 'var(--gold)', icon: Trophy },
+        { label: '1X2', value: (s.result1x2 || s.r1x2)?.percentage ?? 0, total: (s.result1x2 || s.r1x2)?.total ?? 0, color: 'var(--violet)', icon: Target },
+        { label: 'Over 2.5', value: (s.resultOver25 || s.over25)?.percentage ?? 0, total: (s.resultOver25 || s.over25)?.total ?? 0, color: 'var(--emerald)', icon: TrendingUp },
+        { label: 'Over 3.5', value: (s.resultOver35 || s.over35)?.percentage ?? 0, total: (s.resultOver35 || s.over35)?.total ?? 0, color: 'var(--blue)', icon: BarChart3 },
+        { label: 'BTTS', value: (s.resultBtts || s.btts)?.percentage ?? 0, total: (s.resultBtts || s.btts)?.total ?? 0, color: 'var(--gold)', icon: Trophy },
       ]
     : [];
 

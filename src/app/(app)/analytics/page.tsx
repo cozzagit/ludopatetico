@@ -70,11 +70,42 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/predictions/analytics');
-        if (res.ok) {
-          const json = await res.json();
-          setData(json.data);
-        }
+        const [overviewRes, compRes, statsRes] = await Promise.all([
+          fetch('/api/analytics/overview'),
+          fetch('/api/predictions/accuracy-by-competition'),
+          fetch('/api/predictions/stats'),
+        ]);
+        const overview = overviewRes.ok ? await overviewRes.json() : {};
+        const compData = compRes.ok ? await compRes.json() : [];
+        const statsData = statsRes.ok ? await statsRes.json() : {};
+
+        // Map overview markets to expected format
+        const marketsArr = (overview.markets || []).map((m: any) => ({
+          market: m.marketType,
+          label: m.marketType?.replace(/_/g, ' ') || m.marketType,
+          correct: m.totalPredictions ? Math.round(m.totalPredictions * (m.accuracy || 0) / 100) : 0,
+          total: m.totalPredictions || 0,
+          percentage: m.accuracy || 0,
+        }));
+
+        // Map competition accuracy
+        const compsArr = Array.isArray(compData) ? compData.map((c: any) => ({
+          competitionId: c.competitionId,
+          name: c.competitionName || c.code || '?',
+          code: c.code || '?',
+          correct: c.correct || 0,
+          total: c.total || 0,
+          percentage: c.accuracy || c.percentage || 0,
+        })) : [];
+
+        const overall1x2 = statsData.result1x2 || statsData.r1x2 || { correct: 0, total: 0, percentage: 0 };
+
+        setData({
+          markets: marketsArr,
+          competitions: compsArr,
+          overall: overall1x2,
+          recentTrend: [],
+        });
       } catch {
         // Handle silently
       } finally {

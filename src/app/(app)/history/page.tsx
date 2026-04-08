@@ -57,7 +57,7 @@ export default function HistoryPage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/predictions/history?page=${page}&limit=${perPage}`);
+        const res = await fetch(`/api/predictions/historical?limit=${perPage}`);
         if (res.ok) {
           const data = await res.json();
           setItems(Array.isArray(data) ? data : data.data || []);
