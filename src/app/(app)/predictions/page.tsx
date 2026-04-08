@@ -44,7 +44,7 @@ export default function PredictionsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/predictions/upcoming');
+        const res = await fetch('/api/predictions');
         if (res.ok) {
           const data = await res.json();
           setPredictions(Array.isArray(data) ? data : data.data || []);
