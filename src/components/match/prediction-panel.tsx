@@ -1,7 +1,7 @@
 'use client';
 
 import { ThreeWayBar, ProbabilityBar } from '@/src/components/shared/probability-bar';
-import { Target, TrendingUp, AlertTriangle, CornerDownRight, CreditCard } from 'lucide-react';
+import { Target, TrendingUp, AlertTriangle, CornerDownRight, CreditCard, Zap, Star } from 'lucide-react';
 
 interface PredictionPanelProps {
   prediction: {
@@ -70,7 +70,13 @@ export function PredictionPanel({ prediction, homeTeamName = 'Casa', awayTeamNam
   const awayWin = p(pred.awayWinProbability);
   const confidence = p(pred.confidence);
 
-  const recommendedBets: Array<{ bet: string; reasoning: string; confidence?: number }> = Array.isArray(pred.recommendedBets) ? pred.recommendedBets : [];
+  const rawBets: any[] = Array.isArray(pred.recommendedBets) ? pred.recommendedBets : [];
+  const recommendedBets = rawBets.map(b => ({
+    bet: b.bet || b.value || b.type || '',
+    reasoning: b.reasoning || b.reason || '',
+    confidence: b.confidence || null,
+    type: b.type || '',
+  }));
   const keyFactors: string[] = Array.isArray(pred.keyFactors) ? pred.keyFactors : [];
 
   return (
@@ -225,26 +231,35 @@ export function PredictionPanel({ prediction, homeTeamName = 'Casa', awayTeamNam
 
       {/* Recommended Bets */}
       {recommendedBets.length > 0 && (
-        <div className="glass-card p-5 border-[var(--emerald)]/20">
+        <div className="glass-card p-5 ring-1 ring-[var(--emerald)]/20">
           <h3 className="font-bold flex items-center gap-2 mb-4 text-[var(--emerald)]">
-            <Target className="w-4 h-4" />
+            <Star className="w-4 h-4" />
             Scommesse Raccomandate
           </h3>
-          <div className="space-y-3">
-            {recommendedBets.map((bet, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[var(--emerald)]/5 border border-[var(--emerald)]/10">
-                <span className="shrink-0 w-7 h-7 rounded-lg gradient-emerald flex items-center justify-center text-white text-xs font-bold">
-                  {i + 1}
-                </span>
-                <div className="flex-1">
-                  <div className="font-semibold text-sm">{bet.bet}</div>
-                  <div className="text-xs text-[var(--text-secondary)] mt-0.5">{bet.reasoning}</div>
+          <div className="space-y-2">
+            {recommendedBets.map((bet, i) => {
+              const isGoal = bet.type.includes('btts') || bet.type.includes('over') || bet.type.includes('under');
+              const is1x2 = bet.type.includes('1X2') || bet.type.includes('draw');
+              const isCards = bet.type.includes('card') || bet.type.includes('Card');
+              const isCorners = bet.type.includes('corner') || bet.type.includes('Corner');
+              const Icon = isCards ? CreditCard : isCorners ? CornerDownRight : isGoal ? TrendingUp : is1x2 ? Target : Zap;
+              const color = is1x2 ? 'var(--violet)' : isGoal ? 'var(--emerald)' : isCards ? 'var(--gold)' : isCorners ? 'var(--blue)' : 'var(--emerald)';
+
+              return (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[var(--card-hover)]/50 hover:bg-[var(--card-hover)] transition-colors">
+                  <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+                    <Icon className="w-4 h-4" style={{ color }} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm" style={{ color }}>{bet.bet}</div>
+                    <div className="text-xs text-[var(--text-muted)] mt-0.5">{bet.reasoning}</div>
+                  </div>
+                  {bet.confidence && (
+                    <span className="text-sm font-bold tabular-nums" style={{ color }}>{bet.confidence}%</span>
+                  )}
                 </div>
-                {bet.confidence && (
-                  <span className="text-xs font-bold text-[var(--emerald)]">{bet.confidence}%</span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
