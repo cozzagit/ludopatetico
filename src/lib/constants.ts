@@ -30,17 +30,31 @@ export const NATIONAL_TEAM_COMPETITIONS = new Set<number>([API_FOOTBALL_LEAGUES.
 export const NATIONAL_TEAM_ID_OFFSET = 1000000;
 
 export const LIGUE1_ID_MAP: Record<number, number> = {
-  522: 10001, // OGC Nice
-  511: 10002, // Toulouse FC
-  512: 10003, // Stade Brestois 29
-  525: 10004, // FC Lorient
+  522: 10001, // OGC Nice (conflicts with Palermo in Serie B)
+  511: 10002, // Toulouse FC (conflicts with Empoli in Serie B)
+  512: 10003, // Stade Brestois 29 (conflicts with Frosinone in Serie B)
+  525: 10004, // FC Lorient (conflicts with Pescara in Serie B)
 };
 
+// Teams from API-Football/ECL/EL whose IDs conflict with Football-Data teams
+// These IDs must NOT overwrite existing team names during cup syncs
+export const PROTECTED_TEAM_IDS = new Set([
+  108, // FC Internazionale Milano (Football-Data) - conflicts with Strasbourg in API-Football
+  498, // Sporting CP (Football-Data CL) - conflicts with Sampdoria in API-Football Serie B
+]);
+
 export const SERIE_B_TEAMS: Record<number, { name: string; shortName: string; tla: string }> = {
+  498: { name: 'Sampdoria', shortName: 'Sampdoria', tla: 'SAM' },
   511: { name: 'Empoli', shortName: 'Empoli', tla: 'EMP' },
   512: { name: 'Frosinone', shortName: 'Frosinone', tla: 'FRO' },
   522: { name: 'Palermo', shortName: 'Palermo', tla: 'PAL' },
   525: { name: 'Pescara', shortName: 'Pescara', tla: 'PES' },
+};
+
+// Serie B teams whose API-Football IDs conflict with Football-Data teams
+// These get remapped to custom IDs (20001+) to avoid overwriting CL/EL teams
+export const SERIE_B_ID_MAP: Record<number, number> = {
+  498: 20001, // Sampdoria (conflicts with Sporting CP in CL)
 };
 
 export const COMP_CODE_MAP: Record<number, string> = {

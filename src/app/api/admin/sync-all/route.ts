@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/src/lib/db';
 import { teams, matches, competitions } from '@/src/lib/db/schema';
+import { SERIE_B_TEAMS, PROTECTED_TEAM_IDS } from '@/src/lib/constants';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/src/lib/auth';
 import { footballDataService } from '@/src/lib/services/football-data';
@@ -45,9 +46,14 @@ export async function POST() {
           const result = await apiFootballService.getFixtures((comp as any).apiFootballId, seasonStart, toDate, currentSeason);
           let syncedCount = 0;
 
-          // Save teams first
+          // Save teams first (protect Serie B team names from being overwritten)
           for (const team of result.teams) {
             try {
+              // Skip protected teams to avoid overwriting names (e.g. Inter, Sporting CP)
+              if (PROTECTED_TEAM_IDS.has(team.id)) {
+                console.log(`Skipping protected team ${team.id} (${team.name}) - keeping existing name`);
+                continue;
+              }
               await db.insert(teams).values(team).onConflictDoUpdate({
                 target: teams.id,
                 set: { name: team.name, shortName: team.shortName, tla: team.tla, crest: team.crest },
