@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import {
   ArrowLeft, Calendar, MapPin, Loader2, Zap, Shield, AlertTriangle,
-  Activity, UserX, Clock, Blocks
+  Activity, UserX, Clock, Blocks, Brain
 } from 'lucide-react';
 import { PredictionPanel } from '@/src/components/match/prediction-panel';
 import { PremiumGate } from '@/src/components/premium/premium-gate';
@@ -53,6 +53,59 @@ function formatMatchDate(dateStr: string) {
     full: d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
     time: d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
   };
+}
+
+function NoPredictionBlock({ matchId, isAdmin, isPremium, onGenerated }: {
+  matchId: number; isAdmin?: boolean; isPremium?: boolean; onGenerated: (data: any) => void;
+}) {
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState('');
+  const canGenerate = isAdmin || isPremium;
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/predictions/generate/${matchId}`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error?.message || 'Errore nella generazione');
+        return;
+      }
+      const data = await res.json();
+      onGenerated(data);
+    } catch {
+      setError('Errore di connessione');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="glass-card p-10 text-center">
+      <Zap className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
+      <h3 className="text-lg font-bold mb-2">Pronostico non disponibile</h3>
+      <p className="text-[var(--text-secondary)] text-sm mb-4">
+        Il pronostico per questa partita non e ancora stato generato.
+      </p>
+      {canGenerate && (
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-violet text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {generating ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Generazione in corso...</>
+          ) : (
+            <><Brain className="w-4 h-4" /> Genera Pronostico AI</>
+          )}
+        </button>
+      )}
+      {error && (
+        <p className="text-[var(--red)] text-sm mt-3">{error}</p>
+      )}
+    </div>
+  );
 }
 
 function InjuryRow({ injury }: { injury: { playerName: string; type: string; reason: string } }) {
@@ -278,13 +331,7 @@ export default function MatchDetailPage() {
           </div>
         </>
       ) : (
-        <div className="glass-card p-10 text-center">
-          <Zap className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
-          <h3 className="text-lg font-bold mb-2">Pronostico non disponibile</h3>
-          <p className="text-[var(--text-secondary)] text-sm">
-            Il pronostico per questa partita non e ancora stato generato.
-          </p>
-        </div>
+        <NoPredictionBlock matchId={match.id} isAdmin={user?.isAdmin} isPremium={isPremium} onGenerated={(data) => setMatch(prev => prev ? { ...prev, prediction: data } : prev)} />
       )}
 
       {/* Blockchain Market Odds */}
