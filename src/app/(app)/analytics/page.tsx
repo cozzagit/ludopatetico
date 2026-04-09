@@ -39,6 +39,7 @@ const COMP_LABELS: Record<number, string> = {
   2: 'Europa League',
   848: 'Conference League',
   136: 'Serie B',
+  32: 'Qualif. Mondiali',
 };
 
 function cellColor(accuracy: number): string {
