@@ -190,23 +190,17 @@ export function MatchCard({ match, homeForm, awayForm, compact = false }: MatchC
                 <span className="text-[var(--text-muted)]">{parseFloat(prediction.drawProbability).toFixed(0)}%</span>
                 <span className="text-[var(--red)]">{parseFloat(prediction.awayWinProbability).toFixed(0)}%</span>
               </div>
+              {highlights.map((h, i) => (
+                <span key={i} className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${h.bg} ${h.color}`}>
+                  {h.label}
+                </span>
+              ))}
             </div>
             <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               <span>Conf. {parseFloat(prediction.confidence).toFixed(0)}%</span>
               <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </div>
-
-          {/* Highlight tags */}
-          {highlights.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {highlights.map((h, i) => (
-                <span key={i} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${h.bg} ${h.color}`}>
-                  {h.label}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </Link>
