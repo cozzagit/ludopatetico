@@ -52,7 +52,7 @@ export default function DashboardPage() {
         { label: '1X2', value: (s.result1x2 || s.r1x2)?.percentage ?? 0, total: (s.result1x2 || s.r1x2)?.total ?? 0, color: 'var(--violet)', icon: Target },
         { label: 'Over 2.5', value: (s.resultOver25 || s.over25)?.percentage ?? 0, total: (s.resultOver25 || s.over25)?.total ?? 0, color: 'var(--emerald)', icon: TrendingUp },
         { label: 'Over 3.5', value: (s.resultOver35 || s.over35)?.percentage ?? 0, total: (s.resultOver35 || s.over35)?.total ?? 0, color: 'var(--blue)', icon: BarChart3 },
-        { label: 'BTTS', value: (s.resultBtts || s.btts)?.percentage ?? 0, total: (s.resultBtts || s.btts)?.total ?? 0, color: 'var(--gold)', icon: Trophy },
+        { label: 'GG/NG', value: (s.resultBtts || s.btts)?.percentage ?? 0, total: (s.resultBtts || s.btts)?.total ?? 0, color: 'var(--gold)', icon: Trophy },
       ]
     : [];
 

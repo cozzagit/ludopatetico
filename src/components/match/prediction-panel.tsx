@@ -140,10 +140,10 @@ export function PredictionPanel({ prediction, homeTeamName = 'Casa', awayTeamNam
       {/* BTTS */}
       {(pred.bttsYesProbability || pred.bttsNoProbability) && (
         <div className="glass-card p-5">
-          <h3 className="font-bold mb-4">Goal / No Goal (BTTS)</h3>
+          <h3 className="font-bold mb-4">GG / NG (Goal / No Goal)</h3>
           <div className="grid grid-cols-2 gap-3">
-            {pred.bttsYesProbability && <MarketCell label="Goal (Si)" value={p(pred.bttsYesProbability)} highlight={p(pred.bttsYesProbability) >= 60} />}
-            {pred.bttsNoProbability && <MarketCell label="No Goal (No)" value={p(pred.bttsNoProbability)} />}
+            {pred.bttsYesProbability && <MarketCell label="GG (Goal)" value={p(pred.bttsYesProbability)} highlight={p(pred.bttsYesProbability) >= 60} />}
+            {pred.bttsNoProbability && <MarketCell label="NG (No Goal)" value={p(pred.bttsNoProbability)} />}
           </div>
         </div>
       )}
@@ -173,7 +173,7 @@ export function PredictionPanel({ prediction, homeTeamName = 'Casa', awayTeamNam
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
             {pred.over05HTProb && <MarketCell label="Over 0.5 PT" value={p(pred.over05HTProb)} />}
             {pred.over15HTProb && <MarketCell label="Over 1.5 PT" value={p(pred.over15HTProb)} />}
-            {pred.bttsHTProb && <MarketCell label="BTTS PT" value={p(pred.bttsHTProb)} />}
+            {pred.bttsHTProb && <MarketCell label="GG PT" value={p(pred.bttsHTProb)} />}
           </div>
         </div>
       )}

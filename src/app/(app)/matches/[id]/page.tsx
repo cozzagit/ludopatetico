@@ -345,7 +345,7 @@ export default function MatchDetailPage() {
             )}
             {match.marketOdds.bttsYesProb && (
               <div className="text-center p-2 rounded bg-[var(--card-hover)]/30">
-                <div className="text-xs text-[var(--text-muted)]">BTTS Si</div>
+                <div className="text-xs text-[var(--text-muted)]">GG (Goal)</div>
                 <div className="text-sm font-bold">{(parseFloat(match.marketOdds.bttsYesProb) * 100).toFixed(1)}%</div>
               </div>
             )}

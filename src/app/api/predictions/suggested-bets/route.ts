@@ -38,8 +38,8 @@ const BET_LABELS: Record<string, string> = {
   'OVER_25': 'Over 2.5 Gol',
   'UNDER_25': 'Under 2.5 Gol',
   'OVER_35': 'Over 3.5 Gol',
-  'BTTS_YES': 'Goal (Entrambe segnano)',
-  'BTTS_NO': 'No Goal',
+  'BTTS_YES': 'GG (Goal)',
+  'BTTS_NO': 'NG (No Goal)',
   'OVER_15': 'Over 1.5 Gol',
   'DC_1X': 'Doppia Chance 1X',
   'DC_X2': 'Doppia Chance X2',
@@ -240,7 +240,7 @@ export async function GET() {
             historicalAccuracy: accuracyMap.get(`${match.competitionId}_BTTS`) || 55,
             marketOddsProb: mktP ? mktP * 100 : null,
             reliabilityScore: calcScore(bttsYes, 'BTTS', mktP),
-            reasoning: `Entrambe le squadre dovrebbero segnare (${bttsYes.toFixed(0)}%)`,
+            reasoning: `Entrambe le squadre segnano (${bttsYes.toFixed(0)}%)`,
           });
         }
         if (bttsYes <= 40) {
@@ -253,7 +253,7 @@ export async function GET() {
             historicalAccuracy: accuracyMap.get(`${match.competitionId}_BTTS`) || 55,
             marketOddsProb: mktP ? (1 - mktP) * 100 : null,
             reliabilityScore: calcScore(100 - bttsYes, 'BTTS', mktP ? 1 - mktP : null),
-            reasoning: `Almeno una squadra non segna (${(100 - bttsYes).toFixed(0)}%)`,
+            reasoning: `Almeno una non segna (${(100 - bttsYes).toFixed(0)}%)`,
           });
         }
       }
