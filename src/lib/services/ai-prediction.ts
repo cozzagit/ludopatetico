@@ -168,7 +168,8 @@ class AIPredictionService {
       awayTeam.fifaRanking,
       input.homeInjuries,
       input.awayInjuries,
-      blockchainOdds
+      blockchainOdds,
+      input.h2hMatches
     );
 
     try {
@@ -209,14 +210,24 @@ PRINCIPIO FONDAMENTALE - PESA I FATTORI REALI:
   - 3+ sconfitte consecutive = squadra in crisi (-10% probabilita)
 
 QUANDO SCEGLIERE IL PAREGGIO:
+STATISTICHE REALI: I pareggi rappresentano il 25-30% dei risultati nei top 5 campionati e il 32% in Serie B.
+Il punteggio piu probabile per un pareggio e 1-1 (45% dei pareggi), seguito da 0-0 (27%).
 SI solo se DAVVERO equilibrato:
 - Posizioni in classifica <=3 E punti <=4 E media gol simile (<0.5 diff)
 - Entrambe con molti pareggi recenti (>=2 su 5) E differenza classifica <=5
 - Match difensivi: entrambe <1.2 gol fatti E <0.9 gol subiti
+INDICA pareggio SOLO quando: la differenza di probabilita casa/trasferta e < 12 punti percentuali E l'over 2.5 e sotto il 50% E entrambe le squadre hanno almeno 2 pareggi nelle ultime 5.
 NO NON scegliere pareggio se:
 - Una squadra ha chiaro vantaggio in classifica (>5 posizioni)
 - Una squadra segna molto di piu (differenza >0.8 gol/partita)
 - Una delle due e in forma eccellente mentre l'altra e in crisi
+- La partita e in Champions League o qualificazioni mondiali (tasso pareggi < 17%)
+
+CONFIDENCE - REGOLA ANTI-INFLAZIONE:
+La tua confidence deve riflettere l'INCERTEZZA reale del calcio. Dati empirici mostrano che previsioni con confidence > 75 hanno accuratezza del 47.9% mentre quelle con confidence 50-70 raggiungono il 62.4%.
+Usa confidence > 75 SOLO per partite con differenza classifica > 10 posizioni E forma chiaramente dominante (4+ vittorie su 5).
+Per tutte le altre partite, usa confidence tra 50-70.
+NON usare confidence > 85 salvo casi eccezionali (es. Top 3 vs Bottom 3 con forma 5/5 vittorie).
 
 Rispondi SOLO con un oggetto JSON valido nel seguente formato:
 {
@@ -609,7 +620,8 @@ REGOLE CRITICHE:
     awayFifaRanking?: number | null,
     homeInjuries?: Injury[],
     awayInjuries?: Injury[],
-    blockchainOdds?: MarketOdds | null
+    blockchainOdds?: MarketOdds | null,
+    h2hMatches?: Match[]
   ): string {
     let prompt = `Analizza questa partita di calcio:\n\n`;
     prompt += `**CASA**: ${homeTeam.name}\n`;
@@ -794,6 +806,84 @@ REGOLE CRITICHE:
         prompt += `${awayTeam.name} al completo vs ${homeTeam.name} con assenti -> vantaggio trasferta\n\n`;
       } else if (hasAwayInjuries && !hasHomeInjuries) {
         prompt += `${homeTeam.name} al completo vs ${awayTeam.name} con assenti -> vantaggio casa\n\n`;
+      }
+    }
+
+    // FIX 1: Head-to-head history
+    if (h2hMatches && h2hMatches.length > 0) {
+      const last5h2h = h2hMatches
+        .filter(m => m.homeScore !== null && m.awayScore !== null)
+        .sort((a, b) => new Date(b.utcDate).getTime() - new Date(a.utcDate).getTime())
+        .slice(0, 5);
+
+      if (last5h2h.length > 0) {
+        prompt += `\n**PRECEDENTI DIRETTI (ultimi ${last5h2h.length} incontri)**:\n`;
+        let homeTeamWins = 0;
+        let awayTeamWins = 0;
+        let h2hDraws = 0;
+
+        for (const m of last5h2h) {
+          const date = new Date(m.utcDate).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+          const isHomePlaying = m.homeTeamId === homeTeam.id;
+          const leftTeam = isHomePlaying ? homeTeam.name : awayTeam.name;
+          const rightTeam = isHomePlaying ? awayTeam.name : homeTeam.name;
+          const leftScore = isHomePlaying ? m.homeScore : m.awayScore;
+          const rightScore = isHomePlaying ? m.awayScore : m.homeScore;
+          prompt += `- ${date}: ${leftTeam} ${leftScore}-${rightScore} ${rightTeam}\n`;
+
+          if (m.winner === "HOME_WIN") {
+            if (isHomePlaying) homeTeamWins++; else awayTeamWins++;
+          } else if (m.winner === "AWAY_WIN") {
+            if (isHomePlaying) awayTeamWins++; else homeTeamWins++;
+          } else if (m.winner === "DRAW") {
+            h2hDraws++;
+          }
+        }
+
+        prompt += `- Bilancio H2H: ${homeTeam.name} ${homeTeamWins}V, Pareggi ${h2hDraws}, ${awayTeam.name} ${awayTeamWins}V\n`;
+        if (h2hDraws >= 2) prompt += `- NOTA: Alta tendenza al pareggio nello scontro diretto (${h2hDraws}/${last5h2h.length} pareggi)\n`;
+        prompt += `\n`;
+      }
+    }
+
+    // FIX 2: Home/away form split note
+    if (homeForm || awayForm) {
+      prompt += `**FORMA CASA/TRASFERTA**:\n`;
+      prompt += `ANALIZZA SEPARATAMENTE la forma in casa della squadra di casa e la forma in trasferta della squadra ospite.\n`;
+      if (homeForm) {
+        prompt += `- ${homeTeam.name} gioca IN CASA: considera che il vantaggio casalingo vale mediamente +5-10% di probabilita\n`;
+      }
+      if (awayForm) {
+        prompt += `- ${awayTeam.name} gioca IN TRASFERTA: le squadre vincono mediamente il 25-30% delle partite in trasferta\n`;
+      }
+      prompt += `\n`;
+    }
+
+    // FIX 3: Rest days calculation from h2h or match date context
+    if (match && h2hMatches && h2hMatches.length > 0) {
+      const matchDate = new Date(match.utcDate);
+
+      const lastHomeMatch = h2hMatches
+        .filter(m => (m.homeTeamId === homeTeam.id || m.awayTeamId === homeTeam.id) && m.homeScore !== null)
+        .sort((a, b) => new Date(b.utcDate).getTime() - new Date(a.utcDate).getTime())[0];
+
+      const lastAwayMatch = h2hMatches
+        .filter(m => (m.homeTeamId === awayTeam.id || m.awayTeamId === awayTeam.id) && m.homeScore !== null)
+        .sort((a, b) => new Date(b.utcDate).getTime() - new Date(a.utcDate).getTime())[0];
+
+      if (lastHomeMatch || lastAwayMatch) {
+        prompt += `**RIPOSO**:\n`;
+        if (lastHomeMatch) {
+          const daysRest = Math.round((matchDate.getTime() - new Date(lastHomeMatch.utcDate).getTime()) / (1000 * 60 * 60 * 24));
+          const restLabel = daysRest <= 3 ? "POCO RIPOSO - possibile affaticamento" : daysRest >= 7 ? "BUON RIPOSO" : "Riposo normale";
+          prompt += `- ${homeTeam.name}: ultimo match ${daysRest} giorni fa (${restLabel})\n`;
+        }
+        if (lastAwayMatch) {
+          const daysRest = Math.round((matchDate.getTime() - new Date(lastAwayMatch.utcDate).getTime()) / (1000 * 60 * 60 * 24));
+          const restLabel = daysRest <= 3 ? "POCO RIPOSO - possibile affaticamento" : daysRest >= 7 ? "BUON RIPOSO" : "Riposo normale";
+          prompt += `- ${awayTeam.name}: ultimo match ${daysRest} giorni fa (${restLabel})\n`;
+        }
+        prompt += `\n`;
       }
     }
 

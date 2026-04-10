@@ -113,16 +113,22 @@ export async function GET() {
       };
 
       // Helper to calculate reliability score
+      // Weighted: 35% probability, 40% historical accuracy (heaviest — confidence removed, inverted in data),
+      // 25% market agreement
       function calcScore(prob: number, marketType: string, mktProb: number | null): number {
         const histAcc = accuracyMap.get(`${match.competitionId}_${marketType}`) || 50;
-        // Weighted: 40% probability, 30% historical accuracy, 20% market agreement, 10% confidence
         const marketAgreement = mktProb !== null ? (1 - Math.abs(prob / 100 - mktProb) / 0.5) * 100 : 50;
-        return (prob * 0.4) + (histAcc * 0.3) + (Math.max(0, marketAgreement) * 0.2) + (confidence * 0.1);
+        return (prob * 0.35) + (histAcc * 0.40) + (Math.max(0, marketAgreement) * 0.25);
       }
+
+      // FIX 2: Exclude Europa League and Conference League (28-37% 1X2 accuracy — worse than random)
+      const EXCLUDED_COMPETITION_CODES = ['EL', 'ECL'];
+      if (EXCLUDED_COMPETITION_CODES.includes(comp.code)) continue;
 
       // 1X2 bets
       if (homeProb >= 50) {
         const mktP = mktOdds?.homeWinProb ? parseFloat(mktOdds.homeWinProb) : null;
+        // FIX 6: HOME bonus +5 (HOME predictions hit at 62.4% vs AWAY 45.1%)
         allBets.push({
           ...baseBet,
           betType: '1X2_HOME',
@@ -131,13 +137,14 @@ export async function GET() {
           probability: homeProb,
           historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
           marketOddsProb: mktP ? mktP * 100 : null,
-          reliabilityScore: calcScore(homeProb, '1X2', mktP),
+          reliabilityScore: calcScore(homeProb, '1X2', mktP) + 5,
           reasoning: `${homeTeam.shortName || homeTeam.name} favorita al ${homeProb.toFixed(0)}%`,
         });
       }
 
       if (awayProb >= 50) {
         const mktP = mktOdds?.awayWinProb ? parseFloat(mktOdds.awayWinProb) : null;
+        // FIX 6: AWAY penalty -5 (AWAY predictions hit at 45.1%)
         allBets.push({
           ...baseBet,
           betType: '1X2_AWAY',
@@ -146,25 +153,12 @@ export async function GET() {
           probability: awayProb,
           historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
           marketOddsProb: mktP ? mktP * 100 : null,
-          reliabilityScore: calcScore(awayProb, '1X2', mktP),
+          reliabilityScore: calcScore(awayProb, '1X2', mktP) - 5,
           reasoning: `${awayTeam.shortName || awayTeam.name} favorita al ${awayProb.toFixed(0)}%`,
         });
       }
 
-      if (drawProb >= 35 && Math.abs(homeProb - awayProb) < 15) {
-        const mktP = mktOdds?.drawProb ? parseFloat(mktOdds.drawProb) : null;
-        allBets.push({
-          ...baseBet,
-          betType: '1X2_DRAW',
-          betLabel: BET_LABELS['1X2_DRAW'],
-          betValue: 'Pareggio',
-          probability: drawProb,
-          historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
-          marketOddsProb: mktP ? mktP * 100 : null,
-          reliabilityScore: calcScore(drawProb, '1X2', mktP),
-          reasoning: `Partita equilibrata (${homeProb.toFixed(0)}%-${drawProb.toFixed(0)}%-${awayProb.toFixed(0)}%)`,
-        });
-      }
+      // FIX 3: DRAW predictions excluded — 23.1% hit rate is unacceptable for any schedina tier
 
       // Double Chance - high reliability
       if (homeProb + drawProb >= 70 && homeProb < 60) {
@@ -350,8 +344,8 @@ export async function GET() {
       const uniqueMatches = new Set(bets.map(b => b.matchId)).size;
       if (uniqueMatches < 2) continue;
 
-      // SAFE: 2-3 best diverse bets (score >= 48)
-      const safeBets = pickDiverseBets(bets, 3, 48);
+      // SAFE: exactly 2 best bets (score >= 58) — fewer bets = higher combined probability
+      const safeBets = pickDiverseBets(bets, 2, 58);
       if (safeBets.length >= 2) {
         const avgRel = safeBets.reduce((s, b) => s + b.reliabilityScore, 0) / safeBets.length;
         const combinedProb = safeBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -365,8 +359,8 @@ export async function GET() {
         });
       }
 
-      // MODERATE: 3-4 diverse bets (score >= 38)
-      const modBets = pickDiverseBets(bets, 4, 38);
+      // MODERATE: 3-4 diverse bets (score >= 45)
+      const modBets = pickDiverseBets(bets, 4, 45);
       if (modBets.length >= 3) {
         const avgRel = modBets.reduce((s, b) => s + b.reliabilityScore, 0) / modBets.length;
         const combinedProb = modBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -380,8 +374,8 @@ export async function GET() {
         });
       }
 
-      // BOLD: 4-6 diverse bets (score >= 28)
-      const boldBets = pickDiverseBets(bets, 6, 28);
+      // BOLD: 4-6 diverse bets (score >= 35)
+      const boldBets = pickDiverseBets(bets, 6, 35);
       if (boldBets.length >= 4) {
         const avgRel = boldBets.reduce((s, b) => s + b.reliabilityScore, 0) / boldBets.length;
         const combinedProb = boldBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;

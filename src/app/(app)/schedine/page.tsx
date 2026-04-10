@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, Star, TrendingUp, Shield, Zap, ChevronDown, ChevronUp,
-  Calendar, Trophy, Target, BarChart3, Blocks
+  Calendar, Trophy, Target, BarChart3, Blocks, Equal, Flame
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -36,6 +36,146 @@ interface Schedina {
   bets: SuggestedBet[];
   combinedReliability: number;
   combinedProbability: number;
+}
+
+interface XBet {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  competition: string;
+  matchDate: string;
+  bet: string;
+  drawScore: number;
+  drawProbability: number;
+  over25Probability: number;
+  signals: string[];
+}
+
+interface SchedinaX {
+  tier: string;
+  label: string;
+  description: string;
+  bets: XBet[];
+  combinedDrawProb: number;
+}
+
+interface SchedinaXResponse {
+  schedineX: SchedinaX[];
+  stats: { totalMatchesAnalyzed: number; matchesWithDrawSignal: number; averageDrawScore: number };
+}
+
+const X_TIER_STYLES: Record<string, { gradient: string; border: string; badge: string; accent: string }> = {
+  X_SICURA: {
+    gradient: 'from-amber-600/20 to-yellow-900/10',
+    border: 'ring-amber-500/30',
+    badge: 'bg-amber-500/20 text-amber-400',
+    accent: 'var(--gold)',
+  },
+  X_BILANCIATA: {
+    gradient: 'from-purple-600/20 to-purple-900/10',
+    border: 'ring-purple-500/30',
+    badge: 'bg-purple-500/20 text-purple-400',
+    accent: 'var(--violet)',
+  },
+  X_RISCHIOSA: {
+    gradient: 'from-red-600/20 to-red-900/10',
+    border: 'ring-red-500/30',
+    badge: 'bg-red-500/20 text-red-400',
+    accent: 'var(--red, #ef4444)',
+  },
+};
+
+function SchedinaXCard({ schedina, isFirst }: { schedina: SchedinaX; isFirst: boolean }) {
+  const [expanded, setExpanded] = useState(isFirst);
+  const style = X_TIER_STYLES[schedina.tier] || X_TIER_STYLES.X_SICURA;
+
+  return (
+    <div className={`glass-card overflow-hidden ring-1 ${style.border}`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full p-5 bg-gradient-to-r ${style.gradient} hover:brightness-110 transition-all`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-black/20 backdrop-blur">
+              <span className="text-2xl">🎯</span>
+            </div>
+            <div className="text-left">
+              <div className="font-extrabold text-lg flex items-center gap-2">
+                {schedina.label}
+                {isFirst && (
+                  <span className="px-2 py-0.5 rounded-full bg-[var(--gold)]/20 text-[var(--gold)] text-[10px] font-bold uppercase animate-pulse">
+                    BEST X
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-[var(--text-secondary)] mt-0.5">{schedina.description}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="text-xs text-[var(--text-muted)]">Prob. combinata X</div>
+              <div className="text-sm font-bold tabular-nums" style={{ color: style.accent }}>
+                {schedina.combinedDrawProb.toFixed(1)}%
+              </div>
+            </div>
+            <div className={`px-3 py-2 rounded-xl ${style.badge} text-center min-w-[60px]`}>
+              <div className="text-lg font-extrabold tabular-nums">{schedina.bets.length}</div>
+              <div className="text-[9px] uppercase tracking-wider opacity-70">pareggi</div>
+            </div>
+            {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-[var(--border)]/20">
+          {schedina.bets.map((bet, i) => (
+            <div key={`${bet.matchId}-x`} className="p-4 hover:bg-[var(--card-hover)]/50 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0 ${style.badge}`}>
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold">{bet.homeTeam}</span>
+                    <span className="text-xs text-[var(--text-muted)]">vs</span>
+                    <span className="text-sm font-semibold">{bet.awayTeam}</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5 flex items-center gap-1.5">
+                    <span>{bet.competition}</span>
+                    <span>-</span>
+                    <span>{formatTime(bet.matchDate)}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {bet.signals.map((sig, si) => (
+                      <span key={si} className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/10 text-amber-300">
+                        {sig}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 ring-1 ring-amber-500/30`}>
+                    <Equal className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-sm font-extrabold text-amber-400">X</span>
+                  </div>
+                  <div className="text-sm font-bold tabular-nums mt-1" style={{ color: style.accent }}>
+                    Score {bet.drawScore}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="p-4 flex items-center justify-between text-xs bg-[var(--card-hover)]/20">
+            <span className="text-[var(--text-muted)]">
+              Prob. X combinata: <span className="font-bold" style={{ color: style.accent }}>{schedina.combinedDrawProb.toFixed(1)}%</span>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function reliabilityColor(score: number) {
@@ -297,17 +437,27 @@ function SchedinaCard({ schedina, isFirst }: { schedina: Schedina; isFirst: bool
 export default function SchedinePage() {
   const [topBets, setTopBets] = useState<SuggestedBet[]>([]);
   const [schedine, setSchedine] = useState<Schedina[]>([]);
+  const [schedineX, setSchedineX] = useState<SchedinaX[]>([]);
+  const [xStats, setXStats] = useState<SchedinaXResponse['stats'] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'schedine' | 'ranking'>('schedine');
+  const [view, setView] = useState<'schedine' | 'schedinex' | 'ranking'>('schedine');
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/predictions/suggested-bets');
-        if (res.ok) {
-          const data = await res.json();
+        const [betsRes, xRes] = await Promise.all([
+          fetch('/api/predictions/suggested-bets'),
+          fetch('/api/predictions/schedina-x'),
+        ]);
+        if (betsRes.ok) {
+          const data = await betsRes.json();
           setTopBets(data.topBets || []);
           setSchedine(data.schedine || []);
+        }
+        if (xRes.ok) {
+          const xData: SchedinaXResponse = await xRes.json();
+          setSchedineX(xData.schedineX || []);
+          setXStats(xData.stats || null);
         }
       } catch {
         // Handle silently
@@ -345,7 +495,7 @@ export default function SchedinePage() {
           <span className="text-sm font-bold">Come funziona il punteggio</span>
         </div>
         <p className="text-xs text-[var(--text-muted)]">
-          Ogni scommessa ha un punteggio di affidabilita (0-100) calcolato su: 40% probabilita AI, 30% accuratezza storica del mercato in quella competizione, 20% conferma Polymarket, 10% confidenza generale. Piu alto = piu affidabile.
+          Ogni scommessa ha un punteggio di affidabilita (0-100) calcolato su: 40% accuratezza storica del mercato, 35% probabilita AI, 25% conferma Polymarket. Europa/Conference League escluse (troppo imprevedibili).
         </p>
       </div>
 
@@ -362,6 +512,19 @@ export default function SchedinePage() {
           <div className="flex items-center gap-1.5">
             <Trophy className="w-4 h-4" />
             Schedine del giorno
+          </div>
+        </button>
+        <button
+          onClick={() => setView('schedinex')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            view === 'schedinex'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/25'
+              : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <Equal className="w-4 h-4" />
+            Schedina X
           </div>
         </button>
         <button
@@ -407,6 +570,50 @@ export default function SchedinePage() {
               <h3 className="text-lg font-bold mb-2">Nessuna schedina disponibile</h3>
               <p className="text-[var(--text-secondary)] text-sm">
                 Servono almeno 2 partite nello stesso giorno con pronostici per generare schedine.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Schedina X view */}
+      {view === 'schedinex' && (
+        <div className="space-y-6">
+          {/* Info card */}
+          <div className="glass-card p-4 ring-1 ring-amber-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Equal className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-bold text-amber-400">Schedina X — Pareggi</span>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Algoritmo statistico basato su: tasso pareggi per campionato, equilibrio tra squadre, tendenza Under,
+              dati storici e conferma Polymarket. Le X pagano quote alte — basta indovinarne 3 per un ottimo ritorno.
+            </p>
+            {xStats && (
+              <div className="flex gap-4 mt-2 text-xs">
+                <span className="text-[var(--text-muted)]">
+                  Partite analizzate: <span className="font-bold text-amber-400">{xStats.totalMatchesAnalyzed}</span>
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  Con segnale X: <span className="font-bold text-amber-400">{xStats.matchesWithDrawSignal}</span>
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  Draw Score medio: <span className="font-bold text-amber-400">{xStats.averageDrawScore.toFixed(0)}</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          {schedineX.length > 0 ? (
+            schedineX.map((sx, i) => (
+              <SchedinaXCard key={sx.tier} schedina={sx} isFirst={i === 0} />
+            ))
+          ) : (
+            <div className="glass-card p-12 text-center">
+              <Equal className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
+              <h3 className="text-lg font-bold mb-2">Nessuna Schedina X disponibile</h3>
+              <p className="text-[var(--text-secondary)] text-sm">
+                Servono partite con pronostici nei prossimi 3 giorni per generare le schedine pareggio.
               </p>
             </div>
           )}
