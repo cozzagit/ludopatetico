@@ -38,10 +38,10 @@ function ResultIcon({ correct }: { correct?: boolean | null }) {
 function MarketResult({ label, correct }: { label: string; correct?: boolean | null }) {
   if (correct === null || correct === undefined) return null;
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+    <span className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-medium whitespace-nowrap ${
       correct ? 'bg-[var(--emerald)]/10 text-[var(--emerald)]' : 'bg-[var(--red)]/10 text-[var(--red)]'
     }`}>
-      {label} {correct ? 'OK' : 'NO'}
+      {label}<span className="hidden sm:inline"> {correct ? 'OK' : 'NO'}</span><span className="sm:hidden">{correct ? '✓' : '✗'}</span>
     </span>
   );
 }
@@ -135,8 +135,8 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  {/* Market results */}
-                  <div className="hidden sm:flex items-center gap-2">
+                  {/* Market results — always visible, compact on mobile */}
+                  <div className="flex items-center gap-1">
                     <MarketResult label="1X2" correct={item.result1x2Correct} />
                     <MarketResult label="O2.5" correct={item.resultOver25Correct} />
                     <MarketResult label="BTTS" correct={item.resultBttsCorrect} />

@@ -13,8 +13,8 @@ interface PolymarketMarket {
   id: string;
   question: string;
   slug: string;
-  outcomes: string[];
-  outcomePrices: string[];
+  outcomes: string; // JSON-encoded string, e.g. "[\"Yes\", \"No\"]"
+  outcomePrices: string; // JSON-encoded string, e.g. "[\"0.735\", \"0.265\"]"
   volume: string;
   liquidity: string;
   active: boolean;
@@ -144,6 +144,26 @@ export async function fetchAllSoccerEvents(
   return events;
 }
 
+// ── Helpers for Polymarket JSON-encoded fields ────────────────────────
+
+/**
+ * Polymarket returns outcomes and outcomePrices as JSON-encoded strings,
+ * e.g. "[\"0.735\", \"0.265\"]". This helper safely parses them into
+ * a numeric array. Returns [] on any parse failure.
+ */
+function parseOutcomePrices(raw: string | string[] | undefined): number[] {
+  if (!raw) return [];
+  try {
+    const arr: string[] = Array.isArray(raw) ? raw : JSON.parse(raw);
+    return arr.map((v) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    });
+  } catch {
+    return [];
+  }
+}
+
 // ── Parse Market Odds from Event ───────────────────────────────────────
 
 function parseMarketOdds(event: PolymarketEvent): ParsedMarketOdds {
@@ -170,7 +190,9 @@ function parseMarketOdds(event: PolymarketEvent): ParsedMarketOdds {
   for (const market of event.markets) {
     if (!market.active || market.closed) continue;
 
-    const yesPrice = parseFloat(market.outcomePrices?.[0] || "0");
+    const prices = parseOutcomePrices(market.outcomePrices);
+    const yesPrice = prices[0] ?? 0;
+    if (yesPrice === 0) continue; // Skip markets with no valid price
     const marketType = market.sportsMarketType || "";
     const slug = market.slug || "";
     const question = market.question?.toLowerCase() || "";
@@ -430,14 +452,20 @@ export async function syncMarketOdds(
                 cornersOver105Prob: odds.cornersOver105Prob?.toFixed(4) ?? null,
                 totalVolume: odds.totalVolume.toFixed(2),
                 totalLiquidity: odds.totalLiquidity.toFixed(2),
-                rawMarkets: event.markets.map((m) => ({
-                  id: m.id,
-                  question: m.question,
-                  type: m.sportsMarketType,
-                  outcomes: m.outcomes,
-                  prices: m.outcomePrices,
-                  volume: m.volume,
-                })),
+                rawMarkets: event.markets.map((m) => {
+                  let outcomes: string[] = [];
+                  let prices: string[] = [];
+                  try { outcomes = JSON.parse(m.outcomes || "[]"); } catch { /* keep empty */ }
+                  try { prices = JSON.parse(m.outcomePrices || "[]"); } catch { /* keep empty */ }
+                  return {
+                    id: m.id,
+                    question: m.question,
+                    type: m.sportsMarketType,
+                    outcomes,
+                    prices,
+                    volume: m.volume,
+                  };
+                }),
                 gameStartTime: eventDate,
                 lastUpdated: new Date(),
               })
@@ -460,14 +488,20 @@ export async function syncMarketOdds(
                   cornersOver105Prob: odds.cornersOver105Prob?.toFixed(4) ?? null,
                   totalVolume: odds.totalVolume.toFixed(2),
                   totalLiquidity: odds.totalLiquidity.toFixed(2),
-                  rawMarkets: event.markets.map((m) => ({
-                    id: m.id,
-                    question: m.question,
-                    type: m.sportsMarketType,
-                    outcomes: m.outcomes,
-                    prices: m.outcomePrices,
-                    volume: m.volume,
-                  })),
+                  rawMarkets: event.markets.map((m) => {
+                    let outcomes: string[] = [];
+                    let prices: string[] = [];
+                    try { outcomes = Array.isArray(m.outcomes) ? m.outcomes : JSON.parse(m.outcomes || "[]"); } catch { /* keep empty */ }
+                    try { prices = Array.isArray(m.outcomePrices) ? m.outcomePrices : JSON.parse(m.outcomePrices || "[]"); } catch { /* keep empty */ }
+                    return {
+                      id: m.id,
+                      question: m.question,
+                      type: m.sportsMarketType,
+                      outcomes,
+                      prices,
+                      volume: m.volume,
+                    };
+                  }),
                   gameStartTime: eventDate,
                   lastUpdated: new Date(),
                 },

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, Star, TrendingUp, Shield, Zap, ChevronDown, ChevronUp,
-  Calendar, Trophy, Target, BarChart3, Blocks, Equal
+  Calendar, Trophy, Target, BarChart3, Blocks, Equal, Copy, Diamond
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,6 +64,25 @@ interface SchedinaXResponse {
   stats: { totalMatchesAnalyzed: number; matchesWithDrawSignal: number; averageDrawScore: number };
 }
 
+interface ValueBet {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamCrest: string | null;
+  awayTeamCrest: string | null;
+  competition: string;
+  competitionCode: string;
+  utcDate: string;
+  marketType: string;
+  marketLabel: string;
+  aiProbability: number;
+  polymarketProbability: number;
+  edge: number;
+  absEdge: number;
+  direction: 'VALUE' | 'CAUTION';
+  signalStrength: 'low' | 'medium' | 'high';
+}
+
 const X_TIER_STYLES: Record<string, { gradient: string; border: string; badge: string; accent: string }> = {
   X_SICURA: {
     gradient: 'from-amber-600/20 to-yellow-900/10',
@@ -85,9 +104,28 @@ const X_TIER_STYLES: Record<string, { gradient: string; border: string; badge: s
   },
 };
 
+function buildSchedinaXText(schedina: SchedinaX): string {
+  const lines = [`🎯 ${schedina.label.toUpperCase()}`];
+  schedina.bets.forEach((bet, i) => {
+    lines.push(`${i + 1}. ${bet.homeTeam} vs ${bet.awayTeam} → X (Score ${bet.drawScore})`);
+  });
+  lines.push(`Prob. X combinata: ${schedina.combinedDrawProb.toFixed(1)}%`);
+  return lines.join('\n');
+}
+
 function SchedinaXCard({ schedina, isFirst }: { schedina: SchedinaX; isFirst: boolean }) {
   const [expanded, setExpanded] = useState(isFirst);
+  const [copied, setCopied] = useState(false);
   const style = X_TIER_STYLES[schedina.tier] || X_TIER_STYLES.X_SICURA;
+
+  function handleCopy(e: React.MouseEvent) {
+    e.preventDefault();
+    const text = buildSchedinaXText(schedina);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
 
   return (
     <div className={`glass-card overflow-hidden ring-1 ${style.border}`}>
@@ -171,6 +209,13 @@ function SchedinaXCard({ schedina, isFirst }: { schedina: SchedinaX; isFirst: bo
             <span className="text-[var(--text-muted)]">
               Prob. X combinata: <span className="font-bold" style={{ color: style.accent }}>{schedina.combinedDrawProb.toFixed(1)}%</span>
             </span>
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              <Copy className="w-3 h-3" />
+              <span>{copied ? 'Copiato!' : 'Copia'}</span>
+            </button>
           </div>
         </div>
       )}
@@ -307,11 +352,31 @@ const TYPE_STYLES = {
   },
 };
 
+function buildSchedineText(schedina: Schedina): string {
+  const dateLabel = formatDate(schedina.date);
+  const lines = [`${schedina.emoji} ${schedina.label.toUpperCase()} - ${dateLabel}`];
+  schedina.bets.forEach((bet, i) => {
+    lines.push(`${i + 1}. ${bet.homeTeam} vs ${bet.awayTeam} → ${bet.betLabel} ${bet.betValue} (${bet.probability.toFixed(0)}%)`);
+  });
+  lines.push(`Prob. combinata: ${schedina.combinedProbability.toFixed(1)}%`);
+  return lines.join('\n');
+}
+
 function SchedinaCard({ schedina, isFirst }: { schedina: Schedina; isFirst: boolean }) {
   const [expanded, setExpanded] = useState(isFirst);
+  const [copied, setCopied] = useState(false);
   const style = TYPE_STYLES[schedina.type];
   const TypeIcon = style.icon;
   const dateLabel = formatDate(schedina.date);
+
+  function handleCopy(e: React.MouseEvent) {
+    e.preventDefault();
+    const text = buildSchedineText(schedina);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
 
   return (
     <div className={`glass-card overflow-hidden ring-1 ${style.border}`}>
@@ -424,13 +489,117 @@ function SchedinaCard({ schedina, isFirst }: { schedina: Schedina; isFirst: bool
                 Prob. combinata: <span className="font-bold">{schedina.combinedProbability.toFixed(1)}%</span>
               </span>
             </div>
-            <span className="text-[var(--text-muted)]">
-              {schedina.bets.filter(b => b.marketOddsProb).length}/{schedina.bets.length} confermati da Polymarket
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[var(--text-muted)]">
+                {schedina.bets.filter(b => b.marketOddsProb).length}/{schedina.bets.length} confermati da Polymarket
+              </span>
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <Copy className="w-3 h-3" />
+                <span>{copied ? 'Copiato!' : 'Copia'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+const MARKET_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  '1X2_HOME': { bg: 'bg-blue-500/15', text: 'text-blue-400' },
+  '1X2_AWAY': { bg: 'bg-purple-500/15', text: 'text-purple-400' },
+  'OVER_25': { bg: 'bg-cyan-500/15', text: 'text-cyan-400' },
+  'BTTS_YES': { bg: 'bg-amber-500/15', text: 'text-amber-400' },
+};
+
+function ValueBetCard({ bet }: { bet: ValueBet }) {
+  const isValue = bet.direction === 'VALUE';
+  const edgeColor = isValue ? 'text-emerald-400' : 'text-red-400';
+  const edgeBg = isValue ? 'bg-emerald-500/10 ring-emerald-500/30' : 'bg-red-500/10 ring-red-500/30';
+  const mktColor = MARKET_TYPE_COLORS[bet.marketType] || { bg: 'bg-gray-500/15', text: 'text-gray-400' };
+  const signalLabel = bet.signalStrength === 'high' ? 'Forte' : bet.signalStrength === 'medium' ? 'Medio' : 'Debole';
+  const signalDots = bet.signalStrength === 'high' ? '●●●' : bet.signalStrength === 'medium' ? '●●○' : '●○○';
+  const signalColor = bet.signalStrength === 'high' ? 'text-emerald-400' : bet.signalStrength === 'medium' ? 'text-emerald-400' : 'text-yellow-400';
+
+  return (
+    <Link href={`/matches/${bet.matchId}`} className="block">
+      <div className="glass-card p-4 hover:bg-[var(--card-hover)] transition-all">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            {/* Match info */}
+            <div className="flex items-center gap-2 mb-1.5">
+              {bet.homeTeamCrest && <img src={bet.homeTeamCrest} alt="" className="w-4 h-4 object-contain" />}
+              <span className="text-sm font-semibold truncate">{bet.homeTeam}</span>
+              <span className="text-xs text-[var(--text-muted)]">vs</span>
+              <span className="text-sm font-semibold truncate">{bet.awayTeam}</span>
+              {bet.awayTeamCrest && <img src={bet.awayTeamCrest} alt="" className="w-4 h-4 object-contain" />}
+            </div>
+
+            {/* Competition & time */}
+            <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] mb-2.5">
+              <span>{bet.competition}</span>
+              <span>-</span>
+              <span>{formatTime(bet.utcDate)}</span>
+            </div>
+
+            {/* Market type badge */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${mktColor.bg} ${mktColor.text}`}>
+                {bet.marketLabel}
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isValue ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                {isValue ? 'VALUE' : 'CAUTION'}
+              </span>
+            </div>
+
+            {/* AI vs Polymarket bars */}
+            <div className="space-y-1.5 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[var(--text-muted)] w-20 shrink-0">AI Oracle</span>
+                <div className="flex-1 h-5 bg-[var(--card-hover)]/50 rounded-full overflow-hidden relative">
+                  <div
+                    className="h-full rounded-full bg-[var(--violet)]/60 transition-all"
+                    style={{ width: `${Math.min(bet.aiProbability, 100)}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold">
+                    {bet.aiProbability.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[var(--text-muted)] w-20 shrink-0">Polymarket</span>
+                <div className="flex-1 h-5 bg-[var(--card-hover)]/50 rounded-full overflow-hidden relative">
+                  <div
+                    className="h-full rounded-full bg-[var(--emerald)]/60 transition-all"
+                    style={{ width: `${Math.min(bet.polymarketProbability, 100)}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold">
+                    {bet.polymarketProbability.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Signal strength */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">Segnale:</span>
+              <span className={`font-bold ${signalColor}`}>{signalDots} {signalLabel}</span>
+            </div>
+          </div>
+
+          {/* Edge */}
+          <div className={`text-center shrink-0 px-3 py-2 rounded-xl ${edgeBg} ring-1`}>
+            <div className={`text-xl font-extrabold tabular-nums ${edgeColor}`}>
+              {bet.edge > 0 ? '+' : ''}{bet.edge.toFixed(1)}%
+            </div>
+            <div className="text-[10px] text-[var(--text-muted)]">Edge</div>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -439,15 +608,17 @@ export default function SchedinePage() {
   const [schedine, setSchedine] = useState<Schedina[]>([]);
   const [schedineX, setSchedineX] = useState<SchedinaX[]>([]);
   const [xStats, setXStats] = useState<SchedinaXResponse['stats'] | null>(null);
+  const [valueBets, setValueBets] = useState<ValueBet[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'schedine' | 'schedinex' | 'ranking'>('schedine');
+  const [view, setView] = useState<'schedine' | 'schedinex' | 'ranking' | 'valuebets'>('schedine');
 
   useEffect(() => {
     async function load() {
       try {
-        const [betsRes, xRes] = await Promise.all([
+        const [betsRes, xRes, vbRes] = await Promise.all([
           fetch('/api/predictions/suggested-bets'),
           fetch('/api/predictions/schedina-x'),
+          fetch('/api/predictions/value-bets'),
         ]);
         if (betsRes.ok) {
           const data = await betsRes.json();
@@ -458,6 +629,10 @@ export default function SchedinePage() {
           const xData: SchedinaXResponse = await xRes.json();
           setSchedineX(xData.schedineX || []);
           setXStats(xData.stats || null);
+        }
+        if (vbRes.ok) {
+          const vbData = await vbRes.json();
+          setValueBets(vbData.valueBets || []);
         }
         // Auto-save schedine to DB (fire and forget)
         fetch('/api/schedine/save', { method: 'POST' }).catch(() => {});
@@ -511,10 +686,10 @@ export default function SchedinePage() {
       </div>
 
       {/* View toggle */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         <button
           onClick={() => setView('schedine')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
             view === 'schedine'
               ? 'bg-[var(--violet)] text-white shadow-lg shadow-violet/25'
               : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
@@ -522,12 +697,13 @@ export default function SchedinePage() {
         >
           <div className="flex items-center gap-1.5">
             <Trophy className="w-4 h-4" />
-            Schedine del giorno
+            <span className="hidden sm:inline">Schedine del giorno</span>
+            <span className="sm:hidden">Schedine</span>
           </div>
         </button>
         <button
           onClick={() => setView('schedinex')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
             view === 'schedinex'
               ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/25'
               : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
@@ -535,12 +711,13 @@ export default function SchedinePage() {
         >
           <div className="flex items-center gap-1.5">
             <Equal className="w-4 h-4" />
-            Schedina X
+            <span className="hidden sm:inline">Schedina X</span>
+            <span className="sm:hidden">X</span>
           </div>
         </button>
         <button
           onClick={() => setView('ranking')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
             view === 'ranking'
               ? 'bg-[var(--violet)] text-white shadow-lg shadow-violet/25'
               : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
@@ -548,7 +725,22 @@ export default function SchedinePage() {
         >
           <div className="flex items-center gap-1.5">
             <TrendingUp className="w-4 h-4" />
-            Ranking scommesse
+            <span className="hidden sm:inline">Ranking scommesse</span>
+            <span className="sm:hidden">Ranking</span>
+          </div>
+        </button>
+        <button
+          onClick={() => setView('valuebets')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
+            view === 'valuebets'
+              ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/25'
+              : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <Diamond className="w-4 h-4" />
+            <span className="hidden sm:inline">Value Bets</span>
+            <span className="sm:hidden">Value</span>
           </div>
         </button>
       </div>
@@ -644,6 +836,41 @@ export default function SchedinePage() {
               <h3 className="text-lg font-bold mb-2">Nessun suggerimento</h3>
               <p className="text-[var(--text-secondary)] text-sm">
                 I suggerimenti appariranno quando ci saranno pronostici per le prossime partite.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Value Bets view */}
+      {view === 'valuebets' && (
+        <div className="space-y-6">
+          {/* Info card */}
+          <div className="glass-card p-4 ring-1 ring-emerald-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Diamond className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-bold text-emerald-400">Value Bets — AI vs Polymarket</span>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Partite dove la probabilita AI differisce significativamente dalle quote Polymarket.
+              <strong className="text-emerald-400"> VALUE</strong> = AI piu ottimista del mercato (possibile valore).
+              <strong className="text-red-400"> CAUTION</strong> = AI meno ottimista del mercato (il mercato sopravvaluta).
+              Soglia minima: 8% di edge.
+            </p>
+          </div>
+
+          {valueBets.length > 0 ? (
+            <div className="space-y-3">
+              {valueBets.map((vb) => (
+                <ValueBetCard key={`${vb.matchId}-${vb.marketType}`} bet={vb} />
+              ))}
+            </div>
+          ) : (
+            <div className="glass-card p-12 text-center">
+              <Diamond className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
+              <h3 className="text-lg font-bold mb-2">Nessuna value bet trovata</h3>
+              <p className="text-[var(--text-secondary)] text-sm">
+                Non ci sono partite con edge significativo tra AI e Polymarket nei prossimi 7 giorni.
               </p>
             </div>
           )}

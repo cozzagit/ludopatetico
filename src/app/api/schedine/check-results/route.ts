@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/src/lib/db';
 import { savedSchedine, matches } from '@/src/lib/db/schema';
-import { eq, or, isNull, gt } from 'drizzle-orm';
+import { eq, or, isNull, gt, inArray } from 'drizzle-orm';
 
 interface BetResult {
   matchId: number;
@@ -87,19 +87,14 @@ export async function POST() {
       }
     }
 
-    // Batch-fetch all needed matches
-    const matchMap = new Map<number, typeof matches.$inferSelect>();
-    for (const matchId of allMatchIds) {
-      const match = await db
-        .select()
-        .from(matches)
-        .where(eq(matches.id, matchId))
-        .limit(1)
-        .then(r => r[0] ?? null);
-      if (match) {
-        matchMap.set(matchId, match);
-      }
-    }
+    // Batch-fetch all needed matches in a single query
+    const allMatchIdArray = [...allMatchIds];
+    const allMatchRows = allMatchIdArray.length > 0
+      ? await db.select().from(matches).where(inArray(matches.id, allMatchIdArray))
+      : [];
+    const matchMap = new Map<number, typeof matches.$inferSelect>(
+      allMatchRows.map(m => [m.id, m])
+    );
 
     // Check each schedina
     for (const schedina of pendingSchedine) {

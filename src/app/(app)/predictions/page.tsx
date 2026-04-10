@@ -102,20 +102,13 @@ export default function PredictionsPage() {
                     </div>
                   </div>
 
-                  {/* Probabilities */}
-                  <div className="hidden sm:flex items-center gap-4 text-sm tabular-nums">
-                    <div className="text-center">
-                      <div className="text-xs text-[var(--text-muted)]">1</div>
-                      <div className="font-bold text-[var(--emerald)]">{parseFloat(pred.homeWinProbability).toFixed(0)}%</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-[var(--text-muted)]">X</div>
-                      <div className="font-bold text-[var(--text-secondary)]">{parseFloat(pred.drawProbability).toFixed(0)}%</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-[var(--text-muted)]">2</div>
-                      <div className="font-bold text-[var(--red)]">{parseFloat(pred.awayWinProbability).toFixed(0)}%</div>
-                    </div>
+                  {/* Probabilities — always visible in compact format */}
+                  <div className="flex items-center text-xs tabular-nums whitespace-nowrap font-bold">
+                    <span className="text-[var(--emerald)]">{parseFloat(pred.homeWinProbability).toFixed(0)}%</span>
+                    <span className="text-[var(--text-muted)] mx-0.5">/</span>
+                    <span className="text-[var(--gold)]">{parseFloat(pred.drawProbability).toFixed(0)}%</span>
+                    <span className="text-[var(--text-muted)] mx-0.5">/</span>
+                    <span className="text-[var(--red)]">{parseFloat(pred.awayWinProbability).toFixed(0)}%</span>
                   </div>
 
                   {/* Confidence */}

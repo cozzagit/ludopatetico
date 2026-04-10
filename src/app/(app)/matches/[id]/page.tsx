@@ -9,6 +9,7 @@ import {
   Activity, UserX, Clock, Blocks, Brain
 } from 'lucide-react';
 import { PredictionPanel } from '@/src/components/match/prediction-panel';
+import { TeamStreakBadges } from '@/src/components/match/team-streak-badges';
 import { PremiumGate } from '@/src/components/premium/premium-gate';
 import { CompetitionBadge } from '@/src/components/shared/competition-badge';
 import { FormBadgeExtended } from '@/src/components/shared/form-badge';
@@ -224,6 +225,7 @@ export default function MatchDetailPage() {
                   <FormBadgeExtended form={match.homeForm.recentForm} />
                 </div>
               )}
+              {match.homeTeam?.id && <TeamStreakBadges teamId={match.homeTeam.id} />}
             </div>
 
             {/* Score / VS */}
@@ -260,6 +262,7 @@ export default function MatchDetailPage() {
                   <FormBadgeExtended form={match.awayForm.recentForm} />
                 </div>
               )}
+              {match.awayTeam?.id && <TeamStreakBadges teamId={match.awayTeam.id} />}
             </div>
           </div>
 

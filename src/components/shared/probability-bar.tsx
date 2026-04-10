@@ -86,7 +86,7 @@ export function ThreeWayBar({
           style={{ width: `${homeValue}%` }}
         />
         <div
-          className="bg-[var(--text-muted)] transition-all duration-700"
+          className="bg-[var(--gold)] transition-all duration-700"
           style={{ width: `${drawValue}%` }}
         />
         <div
@@ -101,7 +101,7 @@ export function ThreeWayBar({
         </div>
         <div className="text-center">
           <span className="text-[var(--text-muted)]">{drawLabel}</span>
-          <span className="ml-1.5 font-bold text-[var(--text-secondary)]">{drawValue.toFixed(1)}%</span>
+          <span className="ml-1.5 font-bold text-[var(--gold)]">{drawValue.toFixed(1)}%</span>
         </div>
         <div className="text-center">
           <span className="text-[var(--text-muted)]">{awayLabel}</span>
