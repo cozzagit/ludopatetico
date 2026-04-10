@@ -406,3 +406,38 @@ export const userFavorites = pgTable("user_favorites", {
 });
 
 export type UserFavorite = typeof userFavorites.$inferSelect;
+
+// Saved Schedine — tracking generated schedine and their results
+export const savedSchedine = pgTable("saved_schedine", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // What type of schedina
+  type: text("type").notNull(), // 'safe', 'moderate', 'bold', 'X_SICURA', 'X_BILANCIATA', 'X_RISCHIOSA'
+  label: text("label").notNull(),
+  // When it was generated
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+  // Target date (the match day)
+  targetDate: text("target_date").notNull(), // YYYY-MM-DD
+  // The bets as JSON array
+  bets: jsonb("bets").notNull(), // Array of bet objects with matchId, teams, bet type, probability etc.
+  // Combined stats at generation time
+  combinedProbability: decimal("combined_probability", { precision: 6, scale: 2 }),
+  totalBets: integer("total_bets").notNull(),
+  // Results (filled later when matches finish)
+  checkedAt: timestamp("checked_at"),
+  correctBets: integer("correct_bets"),
+  wrongBets: integer("wrong_bets"),
+  pendingBets: integer("pending_bets"),
+  isWin: boolean("is_win"), // all bets correct = true
+  // Per-bet results stored as JSON
+  betResults: jsonb("bet_results"), // Array matching bets, with {correct: bool, actualResult: string}
+}, (table) => [
+  index("idx_saved_schedine_type_date").on(table.type, table.targetDate),
+  index("idx_saved_schedine_checked").on(table.checkedAt),
+]);
+
+export const insertSavedSchedinaSchema = createInsertSchema(savedSchedine).omit({
+  id: true,
+  generatedAt: true,
+});
+export type InsertSavedSchedina = z.infer<typeof insertSavedSchedinaSchema>;
+export type SavedSchedina = typeof savedSchedine.$inferSelect;

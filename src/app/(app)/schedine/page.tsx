@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, Star, TrendingUp, Shield, Zap, ChevronDown, ChevronUp,
-  Calendar, Trophy, Target, BarChart3, Blocks, Equal, Flame
+  Calendar, Trophy, Target, BarChart3, Blocks, Equal
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -459,6 +459,8 @@ export default function SchedinePage() {
           setSchedineX(xData.schedineX || []);
           setXStats(xData.stats || null);
         }
+        // Auto-save schedine to DB (fire and forget)
+        fetch('/api/schedine/save', { method: 'POST' }).catch(() => {});
       } catch {
         // Handle silently
       } finally {
@@ -478,14 +480,23 @@ export default function SchedinePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold flex items-center gap-2">
-          <Star className="w-6 h-6 text-[var(--gold)]" />
-          Schedine AI
-        </h1>
-        <p className="text-[var(--text-secondary)] mt-1">
-          Suggerimenti basati su AI + dati storici + mercati blockchain Polymarket
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold flex items-center gap-2">
+            <Star className="w-6 h-6 text-[var(--gold)]" />
+            Schedine AI
+          </h1>
+          <p className="text-[var(--text-secondary)] mt-1">
+            Suggerimenti basati su AI + dati storici + mercati blockchain Polymarket
+          </p>
+        </div>
+        <Link
+          href="/schedine/storico"
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)] transition-all flex items-center gap-2"
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span className="hidden sm:inline">Storico</span>
+        </Link>
       </div>
 
       {/* Legend */}
