@@ -2,7 +2,25 @@
  * Regenerate predictions for all upcoming matches (next 7 days).
  * Run directly on VPS: npx tsx scripts/regenerate-upcoming.ts
  */
-import 'dotenv/config';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// Load .env.local manually (no dotenv dependency)
+const envPath = resolve(process.cwd(), '.env.local');
+try {
+  const envContent = readFileSync(envPath, 'utf-8');
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      process.env[trimmed.substring(0, eqIdx)] = trimmed.substring(eqIdx + 1);
+    }
+  }
+  console.log('✅ .env.local loaded');
+} catch {
+  console.log('⚠️  No .env.local found, using existing env vars');
+}
 import { db } from '../src/lib/db';
 import { matches, predictions } from '../src/lib/db/schema';
 import { and, gte, desc, eq, sql } from 'drizzle-orm';
