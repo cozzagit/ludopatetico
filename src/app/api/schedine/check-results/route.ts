@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/src/lib/db';
-import { savedSchedine, matches } from '@/src/lib/db/schema';
+import { savedSchedine, matches, teams } from '@/src/lib/db/schema';
 import { eq, or, isNull, gt, inArray } from 'drizzle-orm';
+import { footballDataService } from '@/src/lib/services/football-data';
+import { apiFootballService } from '@/src/lib/services/api-football';
+import { COMP_CODE_MAP, API_FOOTBALL_LEAGUES } from '@/src/lib/constants';
 
 interface BetResult {
   matchId: number;
@@ -87,8 +90,106 @@ export async function POST() {
       }
     }
 
-    // Batch-fetch all needed matches in a single query
+    // === STEP 1: Sync match results from external APIs ===
+    // Find which competitions need syncing (matches that are not FINISHED yet)
     const allMatchIdArray = [...allMatchIds];
+    const preCheckRows = allMatchIdArray.length > 0
+      ? await db.select().from(matches).where(inArray(matches.id, allMatchIdArray))
+      : [];
+
+    // Collect competitions with unfinished matches that started 2+ hours ago
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const competitionsToSync = new Set<number>();
+    for (const match of preCheckRows) {
+      if (match.status !== 'FINISHED' && new Date(match.utcDate) < twoHoursAgo) {
+        competitionsToSync.add(match.competitionId);
+      }
+    }
+
+    // Sync each competition's results
+    const footballDataComps = ['SA', 'PL', 'BL1', 'FL1', 'PD', 'CL'];
+    for (const compId of competitionsToSync) {
+      try {
+        const compCode = COMP_CODE_MAP[compId];
+        if (compCode && footballDataComps.includes(compCode)) {
+          await footballDataService.syncFinishedMatches(compCode, 14);
+        } else if (compId === 136) {
+          // Serie B via API-Football
+          const twoWeeksAgo = new Date();
+          twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+          const today = new Date();
+          const { matches: apiMatches, teams: apiTeams } = await apiFootballService.getFixtures(
+            API_FOOTBALL_LEAGUES.SERIE_B,
+            twoWeeksAgo.toISOString().split('T')[0],
+            today.toISOString().split('T')[0],
+            2025
+          );
+          for (const team of apiTeams) {
+            await db.insert(teams).values(team).onConflictDoUpdate({
+              target: teams.id,
+              set: { name: team.name, shortName: team.shortName, tla: team.tla, crest: team.crest },
+            });
+          }
+          for (const m of apiMatches) {
+            await db.insert(matches).values(m).onConflictDoUpdate({
+              target: matches.id,
+              set: { ...m, lastUpdated: new Date() },
+            });
+          }
+        } else if (compId === 2 || compId === 848) {
+          // Europa League / Conference League via API-Football
+          const leagueId = compId === 2 ? API_FOOTBALL_LEAGUES.EUROPA_LEAGUE : API_FOOTBALL_LEAGUES.CONFERENCE_LEAGUE;
+          const twoWeeksAgo = new Date();
+          twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+          const today = new Date();
+          const { matches: apiMatches, teams: apiTeams } = await apiFootballService.getFixtures(
+            leagueId,
+            twoWeeksAgo.toISOString().split('T')[0],
+            today.toISOString().split('T')[0],
+            2025
+          );
+          for (const team of apiTeams) {
+            await db.insert(teams).values(team).onConflictDoUpdate({
+              target: teams.id,
+              set: { name: team.name, shortName: team.shortName, tla: team.tla, crest: team.crest },
+            });
+          }
+          for (const m of apiMatches) {
+            await db.insert(matches).values(m).onConflictDoUpdate({
+              target: matches.id,
+              set: { ...m, lastUpdated: new Date() },
+            });
+          }
+        } else if (compId === 32) {
+          // WC Qualifiers Europe via API-Football
+          const twoWeeksAgo = new Date();
+          twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+          const today = new Date();
+          const { matches: apiMatches, teams: apiTeams } = await apiFootballService.getFixtures(
+            API_FOOTBALL_LEAGUES.WC_QUALIFICATION_EUROPE,
+            twoWeeksAgo.toISOString().split('T')[0],
+            today.toISOString().split('T')[0],
+            2024
+          );
+          for (const team of apiTeams) {
+            await db.insert(teams).values(team).onConflictDoUpdate({
+              target: teams.id,
+              set: { name: team.name, shortName: team.shortName, tla: team.tla, crest: team.crest },
+            });
+          }
+          for (const m of apiMatches) {
+            await db.insert(matches).values(m).onConflictDoUpdate({
+              target: matches.id,
+              set: { ...m, lastUpdated: new Date() },
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Error syncing competition ${compId} for schedine check:`, error);
+      }
+    }
+
+    // === STEP 2: Fetch updated matches and verify schedine ===
     const allMatchRows = allMatchIdArray.length > 0
       ? await db.select().from(matches).where(inArray(matches.id, allMatchIdArray))
       : [];
