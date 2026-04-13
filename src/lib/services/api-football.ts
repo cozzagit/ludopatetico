@@ -9,23 +9,33 @@ import {
   NATIONAL_TEAM_COMPETITIONS,
   NATIONAL_TEAM_ID_OFFSET,
   LEAGUE_TO_COMP_MAP,
+  SERIE_B_ID_MAP,
+  PROTECTED_TEAM_IDS,
+  CUP_TEAM_ID_MAP,
 } from "@/src/lib/constants";
 
 const API_FOOTBALL_URL = "https://api-football-v1.p.rapidapi.com/v3";
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 
 /**
- * Get namespaced team ID to prevent conflicts between club and national teams.
- * National team IDs are offset by 1,000,000 to avoid collisions with Football-Data IDs.
- *
- * @param apiFootballTeamId - Original team ID from API-Football
- * @param leagueId - League/competition ID
- * @returns Namespaced team ID (original + offset for national teams)
+ * Get namespaced team ID to prevent conflicts between different API providers.
+ * - National team IDs are offset by 1,000,000
+ * - Serie B teams with ID conflicts are remapped (e.g. 498 Sampdoria → 20001)
+ * - Cup teams with conflicts are remapped via CUP_TEAM_ID_MAP
  */
 function getNamespacedTeamId(apiFootballTeamId: number, leagueId: number): number {
-  return NATIONAL_TEAM_COMPETITIONS.has(leagueId)
-    ? apiFootballTeamId + NATIONAL_TEAM_ID_OFFSET
-    : apiFootballTeamId;
+  if (NATIONAL_TEAM_COMPETITIONS.has(leagueId)) {
+    return apiFootballTeamId + NATIONAL_TEAM_ID_OFFSET;
+  }
+  // Serie B ID remapping (e.g. 498 → 20001 to avoid overwriting Sporting CP)
+  if (SERIE_B_ID_MAP[apiFootballTeamId] && leagueId === API_FOOTBALL_LEAGUES.SERIE_B) {
+    return SERIE_B_ID_MAP[apiFootballTeamId];
+  }
+  // Cup team ID remapping (EL/ECL teams that conflict with Football-Data IDs)
+  if (CUP_TEAM_ID_MAP[apiFootballTeamId]) {
+    return CUP_TEAM_ID_MAP[apiFootballTeamId];
+  }
+  return apiFootballTeamId;
 }
 
 interface APIFootballTeam {
@@ -224,7 +234,8 @@ class APIFootballService {
 
     return {
       matches: matchesList,
-      teams: Array.from(teamsMap.values()),
+      // Filter out protected teams to prevent overwriting Football-Data names (e.g. Inter, Sporting CP)
+      teams: Array.from(teamsMap.values()).filter(t => !PROTECTED_TEAM_IDS.has(t.id)),
     };
   }
 
@@ -547,7 +558,7 @@ class APIFootballService {
 
       return {
         matches: matchesList,
-        teams: Array.from(teamsMap.values()),
+        teams: Array.from(teamsMap.values()).filter(t => !PROTECTED_TEAM_IDS.has(t.id)),
       };
     } catch (error) {
       console.error(`Failed to fetch all competition fixtures for league ${leagueId}:`, error);
