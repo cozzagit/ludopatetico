@@ -126,8 +126,10 @@ export async function GET() {
       if (EXCLUDED_COMPETITION_CODES.includes(comp.code)) continue;
 
       // 1X2 bets
+      // FIX 9: If market odds strongly disagree (>15pp difference), penalize heavily
       if (homeProb >= 50) {
         const mktP = mktOdds?.homeWinProb ? parseFloat(mktOdds.homeWinProb) : null;
+        const marketDisagree = mktP !== null && (homeProb / 100 - mktP) > 0.15;
         // FIX 6: HOME bonus +5 (HOME predictions hit at 62.4% vs AWAY 45.1%)
         allBets.push({
           ...baseBet,
@@ -137,13 +139,14 @@ export async function GET() {
           probability: homeProb,
           historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
           marketOddsProb: mktP ? mktP * 100 : null,
-          reliabilityScore: calcScore(homeProb, '1X2', mktP) + 5,
-          reasoning: `${homeTeam.shortName || homeTeam.name} favorita al ${homeProb.toFixed(0)}%`,
+          reliabilityScore: calcScore(homeProb, '1X2', mktP) + 5 + (marketDisagree ? -10 : 0),
+          reasoning: `${homeTeam.shortName || homeTeam.name} favorita al ${homeProb.toFixed(0)}%${marketDisagree ? ' (mercato cauto)' : ''}`,
         });
       }
 
       if (awayProb >= 50) {
         const mktP = mktOdds?.awayWinProb ? parseFloat(mktOdds.awayWinProb) : null;
+        const marketDisagree = mktP !== null && (awayProb / 100 - mktP) > 0.15;
         // FIX 6: AWAY penalty -5 (AWAY predictions hit at 45.1%)
         allBets.push({
           ...baseBet,
@@ -153,15 +156,22 @@ export async function GET() {
           probability: awayProb,
           historicalAccuracy: accuracyMap.get(`${match.competitionId}_1X2`) || 50,
           marketOddsProb: mktP ? mktP * 100 : null,
-          reliabilityScore: calcScore(awayProb, '1X2', mktP) - 5,
-          reasoning: `${awayTeam.shortName || awayTeam.name} favorita al ${awayProb.toFixed(0)}%`,
+          reliabilityScore: calcScore(awayProb, '1X2', mktP) - 5 + (marketDisagree ? -10 : 0),
+          reasoning: `${awayTeam.shortName || awayTeam.name} favorita al ${awayProb.toFixed(0)}%${marketDisagree ? ' (mercato cauto)' : ''}`,
         });
       }
 
       // FIX 3: DRAW predictions excluded — 23.1% hit rate is unacceptable for any schedina tier
 
       // Double Chance - high reliability
-      if (homeProb + drawProb >= 70 && homeProb < 60) {
+      // FIX 7: DC requires higher threshold (75%+) and opposing side must be weak (<20%)
+      // Historical DC failures: 0-3, 3-1, 4-1 — the opponent won decisively,
+      // meaning our model was wrong about the stronger side entirely.
+      // Adding a check that the excluded outcome has low probability reduces these upsets.
+      if (homeProb + drawProb >= 75 && homeProb < 60 && awayProb < 20) {
+        const mktP = mktOdds?.homeWinProb ? parseFloat(mktOdds.homeWinProb) : null;
+        const mktDrawP = mktOdds?.drawProb ? parseFloat(mktOdds.drawProb) : null;
+        const marketDC1X = (mktP !== null && mktDrawP !== null) ? mktP + mktDrawP : null;
         allBets.push({
           ...baseBet,
           betType: 'DC_1X',
@@ -169,12 +179,15 @@ export async function GET() {
           betValue: `${homeTeam.shortName || homeTeam.name} o X`,
           probability: homeProb + drawProb,
           historicalAccuracy: (accuracyMap.get(`${match.competitionId}_1X2`) || 50) + 10,
-          marketOddsProb: null,
-          reliabilityScore: calcScore(homeProb + drawProb, '1X2', null) * 0.95,
-          reasoning: `1X copre ${(homeProb + drawProb).toFixed(0)}% delle probabilita`,
+          marketOddsProb: marketDC1X ? marketDC1X * 100 : null,
+          reliabilityScore: calcScore(homeProb + drawProb, '1X2', marketDC1X) * 0.95,
+          reasoning: `1X copre ${(homeProb + drawProb).toFixed(0)}% — avversario solo ${awayProb.toFixed(0)}%`,
         });
       }
-      if (awayProb + drawProb >= 70 && awayProb < 60) {
+      if (awayProb + drawProb >= 75 && awayProb < 60 && homeProb < 20) {
+        const mktP = mktOdds?.awayWinProb ? parseFloat(mktOdds.awayWinProb) : null;
+        const mktDrawP = mktOdds?.drawProb ? parseFloat(mktOdds.drawProb) : null;
+        const marketDCX2 = (mktP !== null && mktDrawP !== null) ? mktP + mktDrawP : null;
         allBets.push({
           ...baseBet,
           betType: 'DC_X2',
@@ -182,9 +195,9 @@ export async function GET() {
           betValue: `X o ${awayTeam.shortName || awayTeam.name}`,
           probability: awayProb + drawProb,
           historicalAccuracy: (accuracyMap.get(`${match.competitionId}_1X2`) || 50) + 10,
-          marketOddsProb: null,
-          reliabilityScore: calcScore(awayProb + drawProb, '1X2', null) * 0.95,
-          reasoning: `X2 copre ${(awayProb + drawProb).toFixed(0)}% delle probabilita`,
+          marketOddsProb: marketDCX2 ? marketDCX2 * 100 : null,
+          reliabilityScore: calcScore(awayProb + drawProb, '1X2', marketDCX2) * 0.95,
+          reasoning: `X2 copre ${(awayProb + drawProb).toFixed(0)}% — avversario solo ${homeProb.toFixed(0)}%`,
         });
       }
 
@@ -192,7 +205,8 @@ export async function GET() {
       const over25 = pred.over25Probability ? parseFloat(pred.over25Probability) : null;
       if (over25 !== null) {
         const mktP = mktOdds?.over25Prob ? parseFloat(mktOdds.over25Prob) : null;
-        if (over25 >= 60) {
+        // FIX 8: Over 2.5 threshold raised from 60% to 68% — we lost 3x with 70-71% predictions (1-1 results)
+        if (over25 >= 68) {
           allBets.push({
             ...baseBet,
             betType: 'OVER_25',
@@ -374,8 +388,8 @@ export async function GET() {
         });
       }
 
-      // BOLD: 4-6 diverse bets (score >= 35)
-      const boldBets = pickDiverseBets(bets, 6, 35);
+      // BOLD: 4-6 diverse bets (score >= 42) — raised from 35 to reduce 2-error schedine
+      const boldBets = pickDiverseBets(bets, 6, 42);
       if (boldBets.length >= 4) {
         const avgRel = boldBets.reduce((s, b) => s + b.reliabilityScore, 0) / boldBets.length;
         const combinedProb = boldBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
