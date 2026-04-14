@@ -317,6 +317,49 @@ class LearningSystem {
     console.log(`Learning system updated for match ${match.id}`);
   }
 
+  /**
+   * Learn from near-miss schedine — when only 1 bet was wrong in a schedina,
+   * that specific bet type + competition gets extra negative weight to reduce
+   * future confidence in similar borderline bets.
+   *
+   * Called from check-results when a schedina is classified as "quasi_vinta".
+   */
+  async learnFromNearMiss(wrongBets: Array<{
+    betType: string;
+    competitionId: number;
+    homeTeamId: number;
+    awayTeamId: number;
+    probability: number;
+  }>): Promise<void> {
+    for (const bet of wrongBets) {
+      // Map betType to learning market type
+      const marketType = bet.betType.startsWith('DC_') ? '1X2'
+        : bet.betType.startsWith('1X2_') ? '1X2'
+        : bet.betType.startsWith('OVER_') ? 'OVER_25'
+        : bet.betType.startsWith('UNDER_') ? 'OVER_25'
+        : bet.betType.startsWith('BTTS_') ? 'BTTS'
+        : bet.betType === 'X' ? '1X2'
+        : null;
+
+      if (!marketType) continue;
+
+      // Register as a failed prediction at competition and team level
+      // This adds extra negative signal beyond the normal per-match learning
+      console.log(`[near-miss learning] ${bet.betType} failed in near-miss schedina (comp=${bet.competitionId}, prob=${bet.probability.toFixed(0)}%)`);
+
+      // Double-count the failure for near-miss emphasis:
+      // the logic is that a bet that ruins an otherwise perfect schedina
+      // should be penalized more than a bet that fails in a completely lost schedina
+      await updatePerformanceRecord(marketType, false, bet.competitionId);
+      await updatePerformanceRecord(marketType, false, undefined, bet.homeTeamId);
+      await updatePerformanceRecord(marketType, false, undefined, bet.awayTeamId);
+    }
+
+    if (wrongBets.length > 0) {
+      console.log(`[near-miss learning] Applied extra penalties for ${wrongBets.length} near-miss bet(s)`);
+    }
+  }
+
   // Get performance summary for analytics
   async getPerformanceSummary(): Promise<{
     markets: Array<{

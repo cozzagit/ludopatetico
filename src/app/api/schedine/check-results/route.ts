@@ -5,6 +5,7 @@ import { eq, or, isNull, gt, inArray } from 'drizzle-orm';
 import { footballDataService } from '@/src/lib/services/football-data';
 import { apiFootballService } from '@/src/lib/services/api-football';
 import { COMP_CODE_MAP, API_FOOTBALL_LEAGUES } from '@/src/lib/constants';
+import { learningSystem } from '@/src/lib/services/learning-system';
 
 interface BetResult {
   matchId: number;
@@ -271,6 +272,42 @@ export async function POST() {
       checkedCount++;
       if (correct > 0 || wrong > 0) {
         updatedCount++;
+      }
+
+      // Near-miss learning: if exactly 1 bet was wrong (quasi_vinta),
+      // apply extra learning penalty to the failing bet type + competition
+      if (pending === 0 && wrong === 1 && correct >= 2) {
+        const wrongBetData: Array<{
+          betType: string;
+          competitionId: number;
+          homeTeamId: number;
+          awayTeamId: number;
+          probability: number;
+        }> = [];
+
+        for (let bi = 0; bi < bets.length; bi++) {
+          if (betResults[bi]?.correct === false) {
+            const bet = bets[bi];
+            const match = matchMap.get(bet.matchId);
+            if (match) {
+              wrongBetData.push({
+                betType: bet.betType || bet.bet || 'X',
+                competitionId: match.competitionId,
+                homeTeamId: match.homeTeamId,
+                awayTeamId: match.awayTeamId,
+                probability: (bet as Record<string, unknown>).probability as number || 50,
+              });
+            }
+          }
+        }
+
+        if (wrongBetData.length > 0) {
+          try {
+            await learningSystem.learnFromNearMiss(wrongBetData);
+          } catch (e) {
+            console.error('Near-miss learning error:', e);
+          }
+        }
       }
     }
 

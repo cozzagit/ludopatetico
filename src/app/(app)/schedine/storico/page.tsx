@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   Loader2, Trophy, TrendingUp, TrendingDown, Clock, CheckCircle2, XCircle,
   Calendar, Shield, Target, Zap, Equal, ChevronDown, ChevronUp,
-  BarChart3, Flame, ArrowLeft, RefreshCw
+  BarChart3, Flame, ArrowLeft, RefreshCw, Sparkles, Minus
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -143,17 +143,62 @@ const TYPE_CONFIG: Record<string, {
   },
 };
 
-function getStatusInfo(schedina: SavedSchedina) {
+type ResultTier = 'pending' | 'vinta' | 'quasi_vinta' | 'parziale' | 'persa';
+
+function classifyResult(schedina: SavedSchedina): {
+  tier: ResultTier;
+  label: string;
+  color: string;
+  bg: string;
+  icon: typeof Trophy;
+  ring: string;
+  gradient: string;
+  nearMissScore: number;
+  defaultExpanded: boolean;
+  opacity: string;
+} {
   if (schedina.pendingBets && schedina.pendingBets > 0) {
-    return { label: 'In corso', color: 'text-blue-400', bg: 'bg-blue-500/15', icon: Clock };
+    return {
+      tier: 'pending', label: 'In corso', color: 'text-blue-400', bg: 'bg-blue-500/15',
+      icon: Clock, ring: 'ring-blue-500/30', gradient: '', nearMissScore: 0,
+      defaultExpanded: false, opacity: '',
+    };
   }
-  if (schedina.isWin === true) {
-    return { label: 'VINTA', color: 'text-emerald-400', bg: 'bg-emerald-500/15', icon: CheckCircle2 };
+
+  const correct = schedina.correctBets ?? 0;
+  const total = schedina.totalBets;
+  const wrong = total - correct;
+  const nearMissScore = Math.round((correct / total) * 100);
+
+  if (wrong === 0 && correct > 0) {
+    return {
+      tier: 'vinta', label: 'VINTA', color: 'text-emerald-400', bg: 'bg-emerald-500/20',
+      icon: Trophy, ring: 'ring-emerald-500/50', gradient: 'from-emerald-500/15 to-transparent',
+      nearMissScore, defaultExpanded: true, opacity: '',
+    };
   }
-  if (schedina.isWin === false) {
-    return { label: 'PERSA', color: 'text-red-400', bg: 'bg-red-500/15', icon: XCircle };
+
+  if (wrong === 1) {
+    return {
+      tier: 'quasi_vinta', label: 'QUASI!', color: 'text-amber-400', bg: 'bg-amber-500/20',
+      icon: Sparkles, ring: 'ring-amber-500/40', gradient: 'from-amber-500/10 to-transparent',
+      nearMissScore, defaultExpanded: true, opacity: '',
+    };
   }
-  return { label: 'Pendente', color: 'text-gray-400', bg: 'bg-gray-500/15', icon: Clock };
+
+  if (correct / total > 0.5) {
+    return {
+      tier: 'parziale', label: 'PARZIALE', color: 'text-zinc-400', bg: 'bg-zinc-500/15',
+      icon: Minus, ring: 'ring-zinc-500/20', gradient: '',
+      nearMissScore, defaultExpanded: false, opacity: '',
+    };
+  }
+
+  return {
+    tier: 'persa', label: 'PERSA', color: 'text-red-400', bg: 'bg-red-500/15',
+    icon: XCircle, ring: 'ring-red-500/10', gradient: '',
+    nearMissScore, defaultExpanded: false, opacity: 'opacity-60',
+  };
 }
 
 function formatDate(dateStr: string) {
@@ -166,41 +211,49 @@ function formatTime(dateStr: string) {
 }
 
 function SchedinaHistoryCard({ schedina }: { schedina: SavedSchedina }) {
-  const [expanded, setExpanded] = useState(false);
+  const result = classifyResult(schedina);
+  const [expanded, setExpanded] = useState(result.defaultExpanded);
   const config = TYPE_CONFIG[schedina.type] || TYPE_CONFIG.safe;
-  const status = getStatusInfo(schedina);
-  const StatusIcon = status.icon;
+  const StatusIcon = result.icon;
   const TypeIcon = config.icon;
-
-  // Determine header gradient based on result
-  let headerGradient = config.gradient;
-  if (schedina.isWin === true) headerGradient = config.winGradient;
-  else if (schedina.isWin === false) headerGradient = config.lossGradient;
-
   const betResults = schedina.betResults || [];
+  const correct = schedina.correctBets ?? 0;
+  const total = schedina.totalBets;
+
+  // Tier-based visual: border-left accent for vinta/quasi
+  const leftAccent = result.tier === 'vinta' ? 'border-l-[3px] border-l-emerald-500'
+    : result.tier === 'quasi_vinta' ? 'border-l-[3px] border-l-amber-500'
+    : '';
 
   return (
-    <div className={`glass-card overflow-hidden ring-1 ${
-      schedina.isWin === true ? 'ring-emerald-500/40' :
-      schedina.isWin === false ? 'ring-red-500/30' :
-      config.border
-    }`}>
+    <div className={`glass-card overflow-hidden ring-1 ${result.ring} ${leftAccent} ${result.opacity} transition-opacity`}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`w-full p-4 bg-gradient-to-r ${headerGradient} hover:brightness-110 transition-all`}
+        className={`w-full ${result.tier === 'persa' ? 'p-3' : 'p-4'} ${result.gradient ? `bg-gradient-to-r ${result.gradient}` : ''} hover:brightness-110 transition-all`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-black/20 backdrop-blur">
-              <TypeIcon className="w-5 h-5" style={{ color: config.accent }} />
+            <div className={`${result.tier === 'persa' ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl flex items-center justify-center bg-black/20 backdrop-blur`}>
+              {result.tier === 'vinta' ? (
+                <Trophy className="w-5 h-5 text-emerald-400" />
+              ) : result.tier === 'quasi_vinta' ? (
+                <Sparkles className="w-5 h-5 text-amber-400" />
+              ) : (
+                <TypeIcon className={`${result.tier === 'persa' ? 'w-4 h-4' : 'w-5 h-5'}`} style={{ color: config.accent }} />
+              )}
             </div>
             <div className="text-left">
-              <div className="font-extrabold text-sm flex items-center gap-2">
+              <div className={`font-extrabold ${result.tier === 'persa' ? 'text-xs' : 'text-sm'} flex items-center gap-2`}>
                 {schedina.label}
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${status.bg} ${status.color}`}>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${result.bg} ${result.color}`}>
                   <StatusIcon className="w-3 h-3 inline mr-0.5" />
-                  {status.label}
+                  {result.label}
                 </span>
+                {result.tier === 'quasi_vinta' && (
+                  <span className="text-[10px] text-amber-500/80 font-normal">
+                    Solo 1 sbagliata!
+                  </span>
+                )}
               </div>
               <div className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-2">
                 <Calendar className="w-3 h-3" />
@@ -210,17 +263,37 @@ function SchedinaHistoryCard({ schedina }: { schedina: SavedSchedina }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Score */}
+            {/* Score with near-miss bar */}
             <div className="text-right">
               <div className="text-xs text-[var(--text-muted)]">Risultato</div>
-              <div className="text-sm font-extrabold tabular-nums">
-                <span className="text-emerald-400">{schedina.correctBets ?? 0}</span>
+              <div className={`${result.tier === 'persa' ? 'text-xs' : 'text-sm'} font-extrabold tabular-nums`}>
+                <span className={
+                  result.tier === 'vinta' ? 'text-emerald-400' :
+                  result.tier === 'quasi_vinta' ? 'text-amber-400' :
+                  result.tier === 'parziale' ? 'text-zinc-300' :
+                  result.tier === 'pending' ? 'text-blue-400' :
+                  'text-red-400'
+                }>{correct}</span>
                 <span className="text-[var(--text-muted)]">/</span>
-                <span>{schedina.totalBets}</span>
+                <span>{total}</span>
                 {schedina.pendingBets && schedina.pendingBets > 0 ? (
                   <span className="text-blue-400 ml-1">({schedina.pendingBets} ?)</span>
                 ) : null}
               </div>
+              {/* Near-miss progress bar */}
+              {result.tier !== 'pending' && (
+                <div className="w-16 h-1 mt-1 rounded-full bg-[var(--card-hover)] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      result.tier === 'vinta' ? 'bg-emerald-500' :
+                      result.tier === 'quasi_vinta' ? 'bg-amber-500' :
+                      result.tier === 'parziale' ? 'bg-zinc-500' :
+                      'bg-red-500/50'
+                    }`}
+                    style={{ width: `${result.nearMissScore}%` }}
+                  />
+                </div>
+              )}
             </div>
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
@@ -230,17 +303,17 @@ function SchedinaHistoryCard({ schedina }: { schedina: SavedSchedina }) {
       {expanded && (
         <div className="divide-y divide-[var(--border)]/20">
           {schedina.bets.map((bet, i) => {
-            const result = betResults[i];
+            const betResult = betResults[i];
             const betType = bet.betType || bet.bet || 'X';
             const betLabel = bet.betLabel || (betType === 'X' ? 'Pareggio (X)' : betType);
             const matchDate = bet.utcDate || bet.matchDate || '';
 
             let resultIcon = <Clock className="w-4 h-4 text-gray-400" />;
             let resultBg = '';
-            if (result?.correct === true) {
+            if (betResult?.correct === true) {
               resultIcon = <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
               resultBg = 'bg-emerald-500/5';
-            } else if (result?.correct === false) {
+            } else if (betResult?.correct === false) {
               resultIcon = <XCircle className="w-4 h-4 text-red-400" />;
               resultBg = 'bg-red-500/5';
             }
@@ -271,9 +344,9 @@ function SchedinaHistoryCard({ schedina }: { schedina: SavedSchedina }) {
                     <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${config.badge}`}>
                       {betLabel}
                     </div>
-                    {result?.actualResult && result.matchStatus === 'FINISHED' && (
+                    {betResult?.actualResult && betResult.matchStatus === 'FINISHED' && (
                       <div className="text-[11px] text-[var(--text-muted)] mt-0.5 tabular-nums">
-                        {result.homeScore}-{result.awayScore}
+                        {betResult.homeScore}-{betResult.awayScore}
                       </div>
                     )}
                   </div>
@@ -284,11 +357,18 @@ function SchedinaHistoryCard({ schedina }: { schedina: SavedSchedina }) {
 
           {/* Footer */}
           <div className="p-3 flex items-center justify-between text-xs bg-[var(--card-hover)]/20">
+            <div className="flex items-center gap-3">
+              <span className="text-[var(--text-muted)]">
+                Prob. combinata: <span className="font-bold">{schedina.combinedProbability ? parseFloat(schedina.combinedProbability).toFixed(1) : '-'}%</span>
+              </span>
+              {result.tier === 'quasi_vinta' && (
+                <span className="text-amber-500 font-medium">
+                  Mancava solo 1!
+                </span>
+              )}
+            </div>
             <span className="text-[var(--text-muted)]">
-              Prob. combinata: <span className="font-bold">{schedina.combinedProbability ? parseFloat(schedina.combinedProbability).toFixed(1) : '-'}%</span>
-            </span>
-            <span className="text-[var(--text-muted)]">
-              Generata il {new Date(schedina.generatedAt).toLocaleDateString('it-IT')}
+              {new Date(schedina.generatedAt).toLocaleDateString('it-IT')}
             </span>
           </div>
         </div>
