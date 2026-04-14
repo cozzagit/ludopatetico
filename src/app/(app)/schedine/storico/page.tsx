@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   Loader2, Trophy, TrendingUp, TrendingDown, Clock, CheckCircle2, XCircle,
   Calendar, Shield, Target, Zap, Equal, ChevronDown, ChevronUp,
-  BarChart3, Flame, ArrowLeft, RefreshCw, Sparkles, Minus
+  BarChart3, Flame, ArrowLeft, RefreshCw, Sparkles, Minus, Eye, EyeOff
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -174,7 +174,7 @@ function classifyResult(schedina: SavedSchedina): {
     return {
       tier: 'vinta', label: 'VINTA', color: 'text-emerald-400', bg: 'bg-emerald-500/20',
       icon: Trophy, ring: 'ring-emerald-500/50', gradient: 'from-emerald-500/15 to-transparent',
-      nearMissScore, defaultExpanded: true, opacity: '',
+      nearMissScore, defaultExpanded: false, opacity: '',
     };
   }
 
@@ -182,7 +182,7 @@ function classifyResult(schedina: SavedSchedina): {
     return {
       tier: 'quasi_vinta', label: 'QUASI!', color: 'text-amber-400', bg: 'bg-amber-500/20',
       icon: Sparkles, ring: 'ring-amber-500/40', gradient: 'from-amber-500/10 to-transparent',
-      nearMissScore, defaultExpanded: true, opacity: '',
+      nearMissScore, defaultExpanded: false, opacity: '',
     };
   }
 
@@ -384,6 +384,7 @@ export default function StoricoPage() {
   const [saving, setSaving] = useState(false);
   const [days, setDays] = useState(30);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [showPersa, setShowPersa] = useState(false);
 
   async function loadHistory() {
     setLoading(true);
@@ -571,6 +572,21 @@ export default function StoricoPage() {
             Rimuovi filtro tipo
           </button>
         )}
+
+        <div className="h-5 w-px bg-[var(--border)] mx-1" />
+
+        <button
+          onClick={() => setShowPersa(!showPersa)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+            showPersa
+              ? 'bg-red-500/15 text-red-400'
+              : 'bg-[var(--card)] text-[var(--text-muted)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
+          }`}
+          title={showPersa ? 'Nascondi schedine perse' : 'Mostra anche le perse'}
+        >
+          {showPersa ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {showPersa ? 'Nascondi perse' : 'Mostra perse'}
+        </button>
       </div>
 
       {/* Schedine list */}
@@ -580,22 +596,46 @@ export default function StoricoPage() {
         </div>
       ) : schedine.length > 0 ? (
         <div className="space-y-3">
-          {/* Group by date */}
+          {/* Group by date, filter out badly-lost unless showPersa */}
           {(() => {
-            const dates = [...new Set(schedine.map(s => s.targetDate))];
-            return dates.map(date => (
-              <div key={date}>
-                <h3 className="text-sm font-bold text-[var(--text-muted)] mb-2 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  {formatDate(date)}
-                </h3>
-                <div className="space-y-2 mb-4">
-                  {schedine.filter(s => s.targetDate === date).map(s => (
-                    <SchedinaHistoryCard key={s.id} schedina={s} />
-                  ))}
-                </div>
-              </div>
-            ));
+            const isPersa = (s: SavedSchedina) => {
+              if (s.pendingBets && s.pendingBets > 0) return false;
+              if (s.isWin) return false;
+              const correct = s.correctBets ?? 0;
+              const total = s.totalBets;
+              const wrong = total - correct;
+              return wrong > 1 && correct / total <= 0.5;
+            };
+
+            const filtered = showPersa ? schedine : schedine.filter(s => !isPersa(s));
+            const hiddenCount = schedine.length - (showPersa ? schedine.length : filtered.length);
+            const dates = [...new Set(filtered.map(s => s.targetDate))];
+
+            return (
+              <>
+                {dates.map(date => (
+                  <div key={date}>
+                    <h3 className="text-sm font-bold text-[var(--text-muted)] mb-2 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {formatDate(date)}
+                    </h3>
+                    <div className="space-y-2 mb-4">
+                      {filtered.filter(s => s.targetDate === date).map(s => (
+                        <SchedinaHistoryCard key={s.id} schedina={s} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {!showPersa && hiddenCount > 0 && (
+                  <button
+                    onClick={() => setShowPersa(true)}
+                    className="w-full py-3 rounded-lg text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-dashed border-[var(--border)] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    {hiddenCount} {hiddenCount === 1 ? 'schedina persa nascosta' : 'schedine perse nascoste'}
+                  </button>
+                )}
+              </>
           })()}
         </div>
       ) : (
