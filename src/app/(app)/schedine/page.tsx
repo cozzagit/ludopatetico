@@ -637,6 +637,7 @@ function ValueBetCard({ bet }: { bet: ValueBet }) {
 const THEME_STYLES: Record<string, { gradient: string; border: string; badge: string; accent: string }> = {
   champions: { gradient: 'from-blue-600/20 to-indigo-900/10', border: 'ring-blue-500/30', badge: 'bg-blue-500/20 text-blue-400', accent: 'var(--blue, #3b82f6)' },
   europe: { gradient: 'from-indigo-600/20 to-purple-900/10', border: 'ring-indigo-500/30', badge: 'bg-indigo-500/20 text-indigo-400', accent: 'var(--violet, #8b5cf6)' },
+  elecl: { gradient: 'from-orange-600/20 to-amber-900/10', border: 'ring-orange-500/30', badge: 'bg-orange-500/20 text-orange-400', accent: 'var(--gold, #f59e0b)' },
   serie_a: { gradient: 'from-emerald-600/20 to-green-900/10', border: 'ring-emerald-500/30', badge: 'bg-emerald-500/20 text-emerald-400', accent: 'var(--emerald, #10b981)' },
   serie_b: { gradient: 'from-teal-600/20 to-cyan-900/10', border: 'ring-teal-500/30', badge: 'bg-teal-500/20 text-teal-400', accent: 'var(--teal, #14b8a6)' },
   premier: { gradient: 'from-purple-600/20 to-fuchsia-900/10', border: 'ring-purple-500/30', badge: 'bg-purple-500/20 text-purple-400', accent: 'var(--violet, #8b5cf6)' },

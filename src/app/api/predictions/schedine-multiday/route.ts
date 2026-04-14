@@ -71,6 +71,17 @@ const THEMES = [
     minScore: 45,
   },
   {
+    id: 'europa_conference',
+    label: 'Europa + Conference League',
+    emoji: '🏟️',
+    theme: 'elecl',
+    competitionIds: [2, 848],
+    description: 'Il giovedi europeo — Europa League e Conference League',
+    minBets: 2,
+    maxBets: 5,
+    minScore: 40,
+  },
+  {
     id: 'serie_a',
     label: 'Serie A Weekend',
     emoji: '🇮🇹',
