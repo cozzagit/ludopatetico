@@ -636,6 +636,7 @@ export default function StoricoPage() {
                   </button>
                 )}
               </>
+            );
           })()}
         </div>
       ) : (
