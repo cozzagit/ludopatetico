@@ -64,6 +64,37 @@ interface SchedinaXResponse {
   stats: { totalMatchesAnalyzed: number; matchesWithDrawSignal: number; averageDrawScore: number };
 }
 
+interface MultidayBet {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamCrest: string | null;
+  awayTeamCrest: string | null;
+  competition: string;
+  competitionCode: string;
+  utcDate: string;
+  betType: string;
+  betLabel: string;
+  betValue: string;
+  probability: number;
+  reliabilityScore: number;
+  reasoning: string;
+}
+
+interface MultidaySchedina {
+  id: string;
+  label: string;
+  emoji: string;
+  theme: string;
+  description: string;
+  dateRange: string;
+  competitionCodes: string[];
+  bets: MultidayBet[];
+  combinedProbability: number;
+  combinedReliability: number;
+  betCount: number;
+}
+
 interface ValueBet {
   matchId: number;
   homeTeam: string;
@@ -603,22 +634,157 @@ function ValueBetCard({ bet }: { bet: ValueBet }) {
   );
 }
 
+const THEME_STYLES: Record<string, { gradient: string; border: string; badge: string; accent: string }> = {
+  champions: { gradient: 'from-blue-600/20 to-indigo-900/10', border: 'ring-blue-500/30', badge: 'bg-blue-500/20 text-blue-400', accent: 'var(--blue, #3b82f6)' },
+  europe: { gradient: 'from-indigo-600/20 to-purple-900/10', border: 'ring-indigo-500/30', badge: 'bg-indigo-500/20 text-indigo-400', accent: 'var(--violet, #8b5cf6)' },
+  serie_a: { gradient: 'from-emerald-600/20 to-green-900/10', border: 'ring-emerald-500/30', badge: 'bg-emerald-500/20 text-emerald-400', accent: 'var(--emerald, #10b981)' },
+  serie_b: { gradient: 'from-teal-600/20 to-cyan-900/10', border: 'ring-teal-500/30', badge: 'bg-teal-500/20 text-teal-400', accent: 'var(--teal, #14b8a6)' },
+  premier: { gradient: 'from-purple-600/20 to-fuchsia-900/10', border: 'ring-purple-500/30', badge: 'bg-purple-500/20 text-purple-400', accent: 'var(--violet, #8b5cf6)' },
+  top5: { gradient: 'from-amber-600/20 to-orange-900/10', border: 'ring-amber-500/30', badge: 'bg-amber-500/20 text-amber-400', accent: 'var(--gold, #f59e0b)' },
+  desp: { gradient: 'from-red-600/20 to-orange-900/10', border: 'ring-red-500/30', badge: 'bg-red-500/20 text-red-400', accent: 'var(--red, #ef4444)' },
+};
+
+function MultidayCard({ schedina, isFirst }: { schedina: MultidaySchedina; isFirst: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const style = THEME_STYLES[schedina.theme] || THEME_STYLES.top5;
+
+  function handleCopy(e: React.MouseEvent) {
+    e.preventDefault();
+    const lines = [`${schedina.emoji} ${schedina.label.toUpperCase()} (${schedina.dateRange})`];
+    schedina.bets.forEach((bet, i) => {
+      const date = new Date(bet.utcDate).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+      lines.push(`${i + 1}. ${bet.homeTeam} vs ${bet.awayTeam} → ${bet.betLabel} (${date})`);
+    });
+    lines.push(`Prob. combinata: ${schedina.combinedProbability.toFixed(1)}%`);
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
+
+  return (
+    <div className={`glass-card overflow-hidden ring-1 ${style.border}`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full p-5 bg-gradient-to-r ${style.gradient} hover:brightness-110 transition-all`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-black/20 backdrop-blur">
+              <span className="text-2xl">{schedina.emoji}</span>
+            </div>
+            <div className="text-left">
+              <div className="font-extrabold text-lg flex items-center gap-2">
+                {schedina.label}
+                {isFirst && (
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold uppercase animate-pulse">
+                    TOP
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-[var(--text-secondary)] mt-0.5 flex items-center gap-2">
+                <Calendar className="w-3 h-3" />
+                {schedina.dateRange}
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{schedina.description}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="text-xs text-[var(--text-muted)]">Prob. combinata</div>
+              <div className="text-sm font-bold tabular-nums" style={{ color: style.accent }}>
+                {schedina.combinedProbability.toFixed(1)}%
+              </div>
+            </div>
+            <div className={`px-3 py-2 rounded-xl ${style.badge} text-center min-w-[60px]`}>
+              <div className="text-lg font-extrabold tabular-nums">{schedina.betCount}</div>
+              <div className="text-[9px] uppercase tracking-wider opacity-70">eventi</div>
+            </div>
+            {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="p-4 space-y-3">
+          {schedina.bets.map((bet, i) => {
+            const matchDate = new Date(bet.utcDate);
+            const dateLabel = matchDate.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+            const timeLabel = matchDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+            return (
+              <div key={`${bet.matchId}-${bet.betType}`} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--card-hover)]/30 hover:bg-[var(--card-hover)]/50 transition-colors">
+                <div className="text-center shrink-0 w-12">
+                  <div className="text-[10px] text-[var(--text-muted)]">{dateLabel}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">{timeLabel}</div>
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    {bet.homeTeamCrest && <img src={bet.homeTeamCrest} alt="" className="w-5 h-5 object-contain shrink-0" />}
+                    <span className="text-sm font-semibold truncate">{bet.homeTeam}</span>
+                    <span className="text-xs text-[var(--text-muted)]">vs</span>
+                    <span className="text-sm font-semibold truncate">{bet.awayTeam}</span>
+                    {bet.awayTeamCrest && <img src={bet.awayTeamCrest} alt="" className="w-5 h-5 object-contain shrink-0" />}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`px-2 py-1 rounded-lg text-xs font-bold ${style.badge}`}>
+                    {bet.betLabel}
+                  </span>
+                  <div className="text-right">
+                    <div className="text-xs font-bold tabular-nums" style={{ color: style.accent }}>
+                      {bet.probability.toFixed(0)}%
+                    </div>
+                    <div className="text-[9px] text-[var(--text-muted)]">
+                      Score {bet.reliabilityScore.toFixed(0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]/20">
+            <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
+              <span>Affidabilita media: <strong className="text-[var(--text-primary)]">{schedina.combinedReliability.toFixed(0)}/100</strong></span>
+              <span>Prob. combinata: <strong style={{ color: style.accent }}>{schedina.combinedProbability.toFixed(1)}%</strong></span>
+            </div>
+            <button
+              onClick={handleCopy}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                copied ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[var(--card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <Copy className="w-3 h-3" />
+              {copied ? 'Copiata!' : 'Copia'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SchedinePage() {
   const [topBets, setTopBets] = useState<SuggestedBet[]>([]);
   const [schedine, setSchedine] = useState<Schedina[]>([]);
   const [schedineX, setSchedineX] = useState<SchedinaX[]>([]);
   const [xStats, setXStats] = useState<SchedinaXResponse['stats'] | null>(null);
   const [valueBets, setValueBets] = useState<ValueBet[]>([]);
+  const [multidaySchedine, setMultidaySchedine] = useState<MultidaySchedina[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'schedine' | 'schedinex' | 'ranking' | 'valuebets'>('schedine');
+  const [view, setView] = useState<'schedine' | 'multiday' | 'schedinex' | 'ranking' | 'valuebets'>('schedine');
 
   useEffect(() => {
     async function load() {
       try {
-        const [betsRes, xRes, vbRes] = await Promise.all([
+        const [betsRes, xRes, vbRes, mdRes] = await Promise.all([
           fetch('/api/predictions/suggested-bets'),
           fetch('/api/predictions/schedina-x'),
           fetch('/api/predictions/value-bets'),
+          fetch('/api/predictions/schedine-multiday'),
         ]);
         if (betsRes.ok) {
           const data = await betsRes.json();
@@ -633,6 +799,10 @@ export default function SchedinePage() {
         if (vbRes.ok) {
           const vbData = await vbRes.json();
           setValueBets(vbData.valueBets || []);
+        }
+        if (mdRes.ok) {
+          const mdData = await mdRes.json();
+          setMultidaySchedine(mdData.schedine || []);
         }
         // Auto-save schedine to DB (fire and forget)
         fetch('/api/schedine/save', { method: 'POST' }).catch(() => {});
@@ -699,6 +869,23 @@ export default function SchedinePage() {
             <Trophy className="w-4 h-4" />
             <span className="hidden sm:inline">Schedine del giorno</span>
             <span className="sm:hidden">Schedine</span>
+          </div>
+        </button>
+        <button
+          onClick={() => setView('multiday')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
+            view === 'multiday'
+              ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+              : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)] border border-[var(--border)]'
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <Blocks className="w-4 h-4" />
+            <span className="hidden sm:inline">Multi-Day</span>
+            <span className="sm:hidden">Multi</span>
+            {multidaySchedine.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20">{multidaySchedine.length}</span>
+            )}
           </div>
         </button>
         <button
@@ -773,6 +960,38 @@ export default function SchedinePage() {
               <h3 className="text-lg font-bold mb-2">Nessuna schedina disponibile</h3>
               <p className="text-[var(--text-secondary)] text-sm">
                 Servono almeno 2 partite nello stesso giorno con pronostici per generare schedine.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Multi-Day view */}
+      {view === 'multiday' && (
+        <div className="space-y-6">
+          <div className="glass-card p-4 ring-1 ring-blue-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Blocks className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-bold text-blue-400">Schedine Multi-Day — Per Competizione</span>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Schedine tematiche che aggregano le migliori scommesse su piu giornate per competizione.
+              Solo i pronostici con il punteggio piu alto vengono inclusi — massima probabilita di vittoria.
+            </p>
+          </div>
+
+          {multidaySchedine.length > 0 ? (
+            <div className="space-y-4">
+              {multidaySchedine.map((ms, i) => (
+                <MultidayCard key={ms.id} schedina={ms} isFirst={i === 0} />
+              ))}
+            </div>
+          ) : (
+            <div className="glass-card p-12 text-center">
+              <Blocks className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
+              <h3 className="text-lg font-bold mb-2">Nessuna schedina multi-day disponibile</h3>
+              <p className="text-[var(--text-secondary)] text-sm">
+                Servono pronostici su piu giornate per la stessa competizione per generare schedine tematiche.
               </p>
             </div>
           )}
