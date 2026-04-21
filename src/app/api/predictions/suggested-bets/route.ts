@@ -133,8 +133,8 @@ export async function GET() {
 
       // 1X2 bets
       // FIX 9: If market odds strongly disagree (>15pp difference), penalize heavily
-      // 1X2 HOME: soglia 55 (era 50) — dati dicono prob 50-55% = coin flip
-      if (homeProb >= 55) {
+      // 1X2 HOME: soglia 50 — HOME hit al 62.4%, meglio permissivi
+      if (homeProb >= 50) {
         const mktP = mktOdds?.homeWinProb ? parseFloat(mktOdds.homeWinProb) : null;
         const marketDisagree = mktP !== null && (homeProb / 100 - mktP) > 0.15;
         // FIX 6: HOME bonus +5 (HOME predictions hit at 62.4% vs AWAY 45.1%)
@@ -151,8 +151,8 @@ export async function GET() {
         });
       }
 
-      // 1X2 AWAY: soglia 58 (era 50) + penalita -5 — away predictions hit solo al 45.1%
-      if (awayProb >= 58) {
+      // 1X2 AWAY: soglia 55 + penalita -5 — away predictions hit solo al 45.1%
+      if (awayProb >= 55) {
         const mktP = mktOdds?.awayWinProb ? parseFloat(mktOdds.awayWinProb) : null;
         const marketDisagree = mktP !== null && (awayProb / 100 - mktP) > 0.15;
         // FIX 6: AWAY penalty -5 (AWAY predictions hit at 45.1%)
@@ -213,8 +213,8 @@ export async function GET() {
       const over25 = pred.over25Probability ? parseFloat(pred.over25Probability) : null;
       if (over25 !== null) {
         const mktP = mktOdds?.over25Prob ? parseFloat(mktOdds.over25Prob) : null;
-        // FIX 8: Over 2.5 threshold raised from 60% to 68% — we lost 3x with 70-71% predictions (1-1 results)
-        if (over25 >= 68) {
+        // Over 2.5 threshold: >=62 (dati: 70% prob ha hit rate 68%, 60% ha 55%)
+        if (over25 >= 62) {
           allBets.push({
             ...baseBet,
             betType: 'OVER_25',
@@ -366,9 +366,8 @@ export async function GET() {
       const uniqueMatches = new Set(bets.map(b => b.matchId)).size;
       if (uniqueMatches < 2) continue;
 
-      // SAFE: exactly 2 best bets (score >= 62) — live data shows 55.6% win rate (5/9).
-      // Soglia alzata da 58 a 62 per proteggere il tier piu affidabile.
-      const safeBets = pickDiverseBets(bets, 2, 62);
+      // SAFE: 2 best bets (score >= 58) — live 55.6% win rate.
+      const safeBets = pickDiverseBets(bets, 2, 58);
       if (safeBets.length >= 2) {
         const avgRel = safeBets.reduce((s, b) => s + b.reliabilityScore, 0) / safeBets.length;
         const combinedProb = safeBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -382,9 +381,8 @@ export async function GET() {
         });
       }
 
-      // MODERATE: 3 bets (ridotto da 4, score >= 55) — live data 20% win rate troppo basso.
-      // Stretta su 3 bet + soglia 55 per portarla verso 40%+ win rate.
-      const modBets = pickDiverseBets(bets, 3, 55);
+      // MODERATE: 3 bets (ridotto da 4, score >= 50) — live 20% win rate.
+      const modBets = pickDiverseBets(bets, 3, 50);
       if (modBets.length >= 3) {
         const avgRel = modBets.reduce((s, b) => s + b.reliabilityScore, 0) / modBets.length;
         const combinedProb = modBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -398,9 +396,8 @@ export async function GET() {
         });
       }
 
-      // BOLD: 4 bets (ridotto da 6, score >= 50) — live data 14% win rate catastrofico.
-      // Con 6 bet la prob combinata e troppo bassa. 4 bet selettivi = quote decenti + win rate realistico.
-      const boldBets = pickDiverseBets(bets, 4, 50);
+      // BOLD: 4 bets (ridotto da 6, score >= 45) — live 14% win rate con 6 bet, 4 sara meglio.
+      const boldBets = pickDiverseBets(bets, 4, 45);
       if (boldBets.length >= 4) {
         const avgRel = boldBets.reduce((s, b) => s + b.reliabilityScore, 0) / boldBets.length;
         const combinedProb = boldBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
