@@ -40,12 +40,12 @@ export const LIGUE1_ID_MAP: Record<number, number> = {
 // These IDs must NOT overwrite existing team names during cup syncs
 // API-Football uses different IDs than Football-Data for the same concepts
 export const PROTECTED_TEAM_IDS = new Set([
-  79,  // Sevilla FC (Football-Data PD) — API-Football 79 = Lille (use 20003 instead)
+  79,  // CA Osasuna (Football-Data PD) — API-Football 79 = Lille (use 20003 instead)
   80,  // RCD Espanyol (Football-Data PD) — API-Football 80 = Lyon (use 20004 instead)
   108, // FC Internazionale Milano (Football-Data) — API-Football 108 = Strasbourg (use 576 instead)
   397, // Brighton & Hove Albion FC (Football-Data PL) — API-Football 397 = Midtjylland (use 20002 instead)
   498, // Sporting CP (Football-Data CL) — API-Football 498 = Sampdoria (use 20001 instead)
-  559, // CA Osasuna (Football-Data PD) — API-Football 559 = FCSB (use 20005 instead)
+  559, // Sevilla FC (Football-Data PD) — API-Football 559 = FCSB (use 20005 instead)
 ]);
 
 // Cup team ID remapping: API-Football ID → our DB ID
