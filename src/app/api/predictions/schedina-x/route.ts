@@ -36,7 +36,7 @@ interface DrawCandidate {
 }
 
 interface SchedinaX {
-  tier: 'X_SICURA' | 'X_BILANCIATA' | 'X_RISCHIOSA';
+  tier: 'X_SICURA' | 'X_BILANCIATA';
   label: string;
   description: string;
   bets: DrawCandidate[];
@@ -122,15 +122,13 @@ export async function GET() {
         }
       }
 
-      // 4. AI draw probability in the sweet spot
-      if (drawProb >= 25 && drawProb <= 32) {
-        drawScore += 12;
-        signals.push(`Draw prob nel sweet spot (${drawProb.toFixed(1)}%)`);
-      } else if (drawProb >= 20 && drawProb < 25) {
-        drawScore += 5;
-      } else if (drawProb > 32) {
-        drawScore += 8;
-        signals.push(`Draw prob alta (${drawProb.toFixed(1)}%)`);
+      // 4. AI draw probability — SOLO sweet spot 25-29% (27.7% draw rate reale nei dati)
+      // Tutte le altre bande hanno draw rate <21% → escluse completamente.
+      if (drawProb >= 25 && drawProb <= 29) {
+        drawScore += 25; // bonus massiccio — questa e l'unica banda che paga
+        signals.push(`Sweet spot pareggio (${drawProb.toFixed(1)}%)`);
+      } else {
+        drawScore -= 30; // penalita pesante per escludere bande non affidabili
       }
 
       // 5. Polymarket agreement
@@ -204,8 +202,8 @@ export async function GET() {
       return picked.length >= minPicks ? picked : [];
     }
 
-    // X SICURA: 2-3 picks, drawScore >= 70
-    const sicuraPicks = pickDiverse(allCandidates, 70, 2, 3);
+    // X SICURA: 2 picks, drawScore >= 75 (era 70) — dati live 0/3 win rate, filtro + stretto
+    const sicuraPicks = pickDiverse(allCandidates, 75, 2, 2);
     if (sicuraPicks.length >= 2) {
       const combinedDrawProb = sicuraPicks.reduce(
         (acc, p) => acc * (p.drawProbability / 100), 1
@@ -219,8 +217,8 @@ export async function GET() {
       });
     }
 
-    // X BILANCIATA: 3-4 picks, drawScore >= 55
-    const bilanciataPicks = pickDiverse(allCandidates, 55, 3, 4);
+    // X BILANCIATA: 3 picks, drawScore >= 65 (era 55) — dati 0/4 win rate, restringo
+    const bilanciataPicks = pickDiverse(allCandidates, 65, 3, 3);
     if (bilanciataPicks.length >= 3) {
       const combinedDrawProb = bilanciataPicks.reduce(
         (acc, p) => acc * (p.drawProbability / 100), 1
@@ -234,23 +232,11 @@ export async function GET() {
       });
     }
 
-    // X RISCHIOSA: 4-5 picks, drawScore >= 40
-    const rischiosaPicks = pickDiverse(allCandidates, 40, 4, 5);
-    if (rischiosaPicks.length >= 4) {
-      const combinedDrawProb = rischiosaPicks.reduce(
-        (acc, p) => acc * (p.drawProbability / 100), 1
-      ) * 100;
-      schedineX.push({
-        tier: 'X_RISCHIOSA',
-        label: 'X Rischiosa',
-        description: `${rischiosaPicks.length} pareggi per quote alte`,
-        bets: rischiosaPicks,
-        combinedDrawProb: Math.round(combinedDrawProb * 100) / 100,
-      });
-    }
+    // X RISCHIOSA RIMOSSA (live 0/4 win rate, probabilita combinata di 4-5 pareggi <1%)
+    // I pareggi sono eventi a bassa probabilita — accumularne 4+ e statisticamente un suicidio.
 
     // Stats
-    const matchesWithSignal = allCandidates.filter(c => c.drawScore >= 40).length;
+    const matchesWithSignal = allCandidates.filter(c => c.drawScore >= 65).length;
     const averageDrawScore = allCandidates.length > 0
       ? Math.round(allCandidates.reduce((s, c) => s + c.drawScore, 0) / allCandidates.length)
       : 0;

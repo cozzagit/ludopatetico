@@ -113,21 +113,28 @@ export async function GET() {
       };
 
       // Helper to calculate reliability score
-      // Weighted: 35% probability, 40% historical accuracy (heaviest — confidence removed, inverted in data),
-      // 25% market agreement
+      // Weighted: 50% probability AI, 40% historical accuracy, 10% market agreement
+      // Polymarket coverage is <1% in DB — dropped from 25% to 10% until coverage improves.
+      // When market data is missing, score uses only prob + historical accuracy (normalized).
       function calcScore(prob: number, marketType: string, mktProb: number | null): number {
         const histAcc = accuracyMap.get(`${match.competitionId}_${marketType}`) || 50;
-        const marketAgreement = mktProb !== null ? (1 - Math.abs(prob / 100 - mktProb) / 0.5) * 100 : 50;
-        return (prob * 0.35) + (histAcc * 0.40) + (Math.max(0, marketAgreement) * 0.25);
+        if (mktProb === null) {
+          // No market data — normalize to 0.56 prob + 0.44 histAcc (approximate the original ratio)
+          return (prob * 0.56) + (histAcc * 0.44);
+        }
+        const marketAgreement = (1 - Math.abs(prob / 100 - mktProb) / 0.5) * 100;
+        return (prob * 0.50) + (histAcc * 0.40) + (Math.max(0, marketAgreement) * 0.10);
       }
 
-      // FIX 2: Exclude Europa League and Conference League (28-37% 1X2 accuracy — worse than random)
-      const EXCLUDED_COMPETITION_CODES = ['EL', 'ECL'];
+      // Exclude Europa League, Conference League, European Championship (25-37% 1X2 — worse than random)
+      // EC added: 34.8% accuracy on 69 matches. EL: 25.6% / ECL: 36.9%.
+      const EXCLUDED_COMPETITION_CODES = ['EL', 'ECL', 'EC'];
       if (EXCLUDED_COMPETITION_CODES.includes(comp.code)) continue;
 
       // 1X2 bets
       // FIX 9: If market odds strongly disagree (>15pp difference), penalize heavily
-      if (homeProb >= 50) {
+      // 1X2 HOME: soglia 55 (era 50) — dati dicono prob 50-55% = coin flip
+      if (homeProb >= 55) {
         const mktP = mktOdds?.homeWinProb ? parseFloat(mktOdds.homeWinProb) : null;
         const marketDisagree = mktP !== null && (homeProb / 100 - mktP) > 0.15;
         // FIX 6: HOME bonus +5 (HOME predictions hit at 62.4% vs AWAY 45.1%)
@@ -144,7 +151,8 @@ export async function GET() {
         });
       }
 
-      if (awayProb >= 50) {
+      // 1X2 AWAY: soglia 58 (era 50) + penalita -5 — away predictions hit solo al 45.1%
+      if (awayProb >= 58) {
         const mktP = mktOdds?.awayWinProb ? parseFloat(mktOdds.awayWinProb) : null;
         const marketDisagree = mktP !== null && (awayProb / 100 - mktP) > 0.15;
         // FIX 6: AWAY penalty -5 (AWAY predictions hit at 45.1%)
@@ -358,8 +366,9 @@ export async function GET() {
       const uniqueMatches = new Set(bets.map(b => b.matchId)).size;
       if (uniqueMatches < 2) continue;
 
-      // SAFE: exactly 2 best bets (score >= 58) — fewer bets = higher combined probability
-      const safeBets = pickDiverseBets(bets, 2, 58);
+      // SAFE: exactly 2 best bets (score >= 62) — live data shows 55.6% win rate (5/9).
+      // Soglia alzata da 58 a 62 per proteggere il tier piu affidabile.
+      const safeBets = pickDiverseBets(bets, 2, 62);
       if (safeBets.length >= 2) {
         const avgRel = safeBets.reduce((s, b) => s + b.reliabilityScore, 0) / safeBets.length;
         const combinedProb = safeBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -373,8 +382,9 @@ export async function GET() {
         });
       }
 
-      // MODERATE: 3-4 diverse bets (score >= 45)
-      const modBets = pickDiverseBets(bets, 4, 45);
+      // MODERATE: 3 bets (ridotto da 4, score >= 55) — live data 20% win rate troppo basso.
+      // Stretta su 3 bet + soglia 55 per portarla verso 40%+ win rate.
+      const modBets = pickDiverseBets(bets, 3, 55);
       if (modBets.length >= 3) {
         const avgRel = modBets.reduce((s, b) => s + b.reliabilityScore, 0) / modBets.length;
         const combinedProb = modBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -383,13 +393,14 @@ export async function GET() {
           date, type: 'moderate',
           label: 'Schedina Bilanciata',
           emoji: '⚖️',
-          description: `${modBets.length} selezioni mix: ${types.join(', ')}. Buon rapporto rischio/rendimento.`,
+          description: `${modBets.length} selezioni selettive: ${types.join(', ')}. Miglior rapporto rischio/rendimento.`,
           bets: modBets, combinedReliability: avgRel, combinedProbability: combinedProb,
         });
       }
 
-      // BOLD: 4-6 diverse bets (score >= 42) — raised from 35 to reduce 2-error schedine
-      const boldBets = pickDiverseBets(bets, 6, 42);
+      // BOLD: 4 bets (ridotto da 6, score >= 50) — live data 14% win rate catastrofico.
+      // Con 6 bet la prob combinata e troppo bassa. 4 bet selettivi = quote decenti + win rate realistico.
+      const boldBets = pickDiverseBets(bets, 4, 50);
       if (boldBets.length >= 4) {
         const avgRel = boldBets.reduce((s, b) => s + b.reliabilityScore, 0) / boldBets.length;
         const combinedProb = boldBets.reduce((p, b) => p * (b.probability / 100), 1) * 100;
@@ -398,7 +409,7 @@ export async function GET() {
           date, type: 'bold',
           label: 'Schedina Rischiosa',
           emoji: '🔥',
-          description: `${boldBets.length} selezioni aggressive: ${types.join(', ')}. Quote alte, alto rischio.`,
+          description: `${boldBets.length} selezioni ambiziose: ${types.join(', ')}. Quote alte, calcolato.`,
           bets: boldBets, combinedReliability: avgRel, combinedProbability: combinedProb,
         });
       }
