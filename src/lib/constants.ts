@@ -41,16 +41,18 @@ export const LIGUE1_ID_MAP: Record<number, number> = {
 // API-Football uses different IDs than Football-Data for the same concepts
 export const PROTECTED_TEAM_IDS = new Set([
   108, // FC Internazionale Milano (Football-Data) — API-Football 108 = Strasbourg (use 576 instead)
+  397, // Brighton & Hove Albion FC (Football-Data PL) — API-Football 397 = Midtjylland (use 20002 instead)
   498, // Sporting CP (Football-Data CL) — API-Football 498 = Sampdoria (use 20001 instead)
 ]);
 
 // Cup team ID remapping: API-Football ID → our DB ID
 // When syncing cups (EL/ECL) via API-Football, these IDs must be remapped
 export const CUP_TEAM_ID_MAP: Record<number, number> = {
-  95: 576,   // Strasbourg: API-Football ID 95 → our ID 576 (from Ligue 1)
-  65: 351,   // Nottingham Forest: API-Football ID 65 → Football-Data ID 351
-  66: 58,    // Aston Villa: API-Football ID 66 → Football-Data ID 58
-  543: 90,   // Real Betis: API-Football ID 543 → Football-Data ID 90
+  95: 576,    // Strasbourg: API-Football ID 95 → our ID 576 (from Ligue 1)
+  65: 351,    // Nottingham Forest: API-Football ID 65 → Football-Data ID 351
+  66: 58,     // Aston Villa: API-Football ID 66 → Football-Data ID 58
+  543: 90,    // Real Betis: API-Football ID 543 → Football-Data ID 90
+  397: 20002, // Midtjylland (API-Football) → remap to avoid overwriting Brighton (Football-Data 397)
 };
 
 export const SERIE_B_TEAMS: Record<number, { name: string; shortName: string; tla: string }> = {
